@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+  <title>GELOS.io</title>
+  <link href="styles.css" rel="stylesheet" />
+  <script src="https://cdn.plot.ly/plotly-2.18.1.min.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.13.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.13.0/mapbox-gl.css" rel="stylesheet" />
+</head>
+<body>
+  <div id="header"><b>Geospatial Exploration of Latent Observation Space (GELOS)</b></div>
+  <div id="container">
+    <div id="map-wrap">
+      <div class="navbar">
+        <a href="">About</a>
+        <a href="https://github.com/ClarkCGA/eo-fm-bench">Github</a>
+        
+        <div class="dropdown">
+          <button class="dropbtn" onclick="toggleMenu(this)">Geospatial Foundation Model
+            <i class="fa fa-caret-down"></i>
+          </button>
+          <div class="dropdown-content">
+            <a href="">Prithvi-EO-2.0</a>
+            <a href="">Model 2</a>
+            <a href="">Model 3</a>
+          </div>
+        </div>
+
+        <div class="dropdown">
+          <button class="dropbtn" onclick="toggleMenu(this)">Images
+            <i class="fa fa-caret-down"></i>
+          </button>
+          <div class="dropdown-content">
+            <a href="">Sentinel-1</a>
+            <a href="">Sentinel-2</a>
+            <a href="">Landsat</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="globe-map">
+        <button type="button" onclick="clickFunction('globe', this)">Globe</button>
+        <button type="button" onclick="clickFunction('mercator', this)">Mercator</button>
+      </div>
+
+      <div id="map-plot"></div>
+    </div>
+      
+    <div id="right-container">
+      <div id="scatter-plot"></div>
+      <div id="image-container"></div>
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
