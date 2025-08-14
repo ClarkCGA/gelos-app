@@ -242,6 +242,25 @@ fetch('data/points.json')
       }
     }
 
+    /* set paddding */
+    function getSideWidthPx() {
+      const el = document.getElementById('right-container');
+      return el ? Math.round(el.getBoundingClientRect().width) : 0;
+    }
+
+    function applyPaddingForMode(mode) {
+      if (!map) return;
+      if (mode === 'globe') {
+        const rightPad = getSideWidthPx();
+        /* set padding so the globe appears centered left*/
+        map.setPadding({ top: 0, right: rightPad, bottom: 0, left: 0 });
+      } else {
+        map.setPadding({ top: 0, right: 0, bottom: 0, left: 0 });
+      }
+      /*re-size canvas after padding change*/
+      map.resize(); 
+    }
+
     /* build or rebuild the map throught mode*/
     function buildMap(mode) {
       if (map) { try { map.remove(); } catch {} map = null; }
@@ -257,10 +276,23 @@ fetch('data/points.json')
         center: presets[mode].center,
         zoom: presets[mode].zoom
       });
+
+      applyPaddingForMode(mode);
+
       setupMap();
 
-      // attach spin handlers it self-checks mode
+      /*attach spin handlers it self-checks mode */
       attachSpinHandlers();
+
+      /* keep padding correct on window resizes */
+      const onResize = () => applyPaddingForMode(currentMode);
+
+      /* avoid stacking multiple listeners across rebuilds*/
+      window.removeEventListener('resize', onResize);
+      window.addEventListener('resize', onResize);
+
+      /*re-apply once style is loaded */
+      map.once('load', () => applyPaddingForMode(mode));
     }
 
     /* global buttons function for inline onclicks*/
@@ -269,9 +301,6 @@ fetch('data/points.json')
       document.querySelectorAll('.globe-map button')
         .forEach(b => b.classList.toggle('active', b === btnEl));
       
-      /* define the wrap when globe is active*/
-      const wrap = document.getElementById('map-wrap');
-      wrap.classList.toggle('globe-left', mode === 'globe');
 
       spinEnabled = (mode === 'globe');
       /* rebuild the chosen mode*/
@@ -283,7 +312,6 @@ fetch('data/points.json')
 
     /*initial map and button state*/
     const defaultBtn = document.querySelector('.globe-map button:nth-child(1)');
-    document.getElementById('map-wrap').classList.add('globe-left'); /* trim map under panel for globe*/
     window.clickFunction('globe', defaultBtn);
     
   })
