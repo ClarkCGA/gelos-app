@@ -34,12 +34,7 @@ html, body {margin:0; padding:0; height:100%; overflow: hidden;}
   position: absolute;
   inset: 0;
   }
-
-  /* globe mode: don't extend under the panel which trims map on the right  */
-  #map-wrap.globe-left #map-plot {
-    right: var(--side-width);       
-  }
- 
+  
   .navbar {
   position: absolute;
   top: 8px; left: 8px;
@@ -147,7 +142,7 @@ html, body {margin:0; padding:0; height:100%; overflow: hidden;}
   max-height: 120px;     
   margin: 0;
   border: 0;
-}
+  }
 
   #footer {
       margin-top: 1rem;
