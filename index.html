@@ -11,13 +11,15 @@
   <link href="https://api.mapbox.com/mapbox-gl-js/v3.13.0/mapbox-gl.css" rel="stylesheet" />
 </head>
 <body>
-  <div id="header"><b>Geospatial Exploration of Latent Observation Space (GELOS)</b></div>
+  <div id="header"><b>Geospatial Exploration of Latent Observation Space (GELOS)</b>
+    <div id="right-header">
+      <a href="">About</a>
+      <a href="https://github.com/ClarkCGA/gelos-app">Github</a>
+    </div>
+  </div>
   <div id="container">
     <div id="map-wrap">
-      <div class="navbar">
-        <a href="">About</a>
-        <a href="https://github.com/ClarkCGA/gelos-app">Github</a>
-        
+      <div class="navbar">    
         <div class="dropdown">
           <button class="dropbtn" onclick="toggleMenu(this)">Geospatial Foundation Model
             <i class="fa fa-caret-down"></i>
@@ -43,7 +45,7 @@
 
       <div class="globe-map">
         <button type="button" onclick="clickFunction('globe', this)">Globe</button>
-        <button type="button" onclick="clickFunction('mercator', this)">Mercator</button>
+        <button type="button" onclick="clickFunction('mercator', this)">Map</button>
       </div>
 
       <div id="map-plot"></div>
