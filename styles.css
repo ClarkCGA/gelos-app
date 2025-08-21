@@ -13,8 +13,36 @@ html, body {margin:0; padding:0; height:100%; overflow: hidden;}
   display: flex;
   align-items: center;
   height: 3rem;
+  justify-content: space-between;  /* push children to edges */
+  gap: 0.75rem;
+  z-index: 10;   /* keep above map */
 }
 
+  #right-header {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;  /* space between About/Github */
+}
+
+  #right-header a, .dropdown .dropbtn {
+  font-size: 16px; color: white; padding: 10px 14px; border: 0; background: transparent;
+  }
+
+  #right-header a{
+    font-size: 16px;
+    color: white;
+    padding: 10px 14px;
+    border: 0;
+    background: transparent;
+    text-decoration: none;
+    display: inline-block;
+    cursor: pointer;
+  }
+
+  #right-header a:hover {
+    background: #6809c1;
+    border-radius: 6px;
+  }
 
   #container {
   position: relative;            
