@@ -101,9 +101,8 @@ fetch('data/points.json')
           `<b>y:</b> %{y:.2f}<br>` +
           `<b>lat:</b> %{customdata[1]:.4f}<br>` +
           `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-        selectedpoints: [],
         selected:   { marker: { color: 'lightblue', size: 10 } },
-        unselected: { marker: { opacity: 0.2 } }
+        unselected: { marker: { opacity: 0.05 } }
       };
     });
 
@@ -148,7 +147,14 @@ fetch('data/points.json')
     function selectOnPlotById(id) {
       const loc = idToPlotIndex.get(id);
       if (!loc) return;
-      clearPlotSelections();
+
+      /*  build the list of trace indices*/
+      const allTraceIdx = scatterTraces.map((_, i) => i);
+
+      /*  selectedpoints = [] to apply "unselected" style */
+      Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, allTraceIdx);
+
+      /*  apple selected" style to the chosen point on its trace*/
       Plotly.restyle('scatter-plot', { selectedpoints: [[ loc.pointIdx ]] }, [ loc.traceIdx ]);
     }
 
@@ -230,7 +236,7 @@ fetch('data/points.json')
       });
 
       /* plotly click → select then fly*/
-      const scatterDiv = document.getElementById('scatter-plot');
+      const scatterDiv = document.getElementById('scatter-plot'); 
       if (scatterDiv && !scatterDiv._boundClick) {
         scatterDiv._boundClick = true;
         scatterDiv.on('plotly_click', (evt) => {
