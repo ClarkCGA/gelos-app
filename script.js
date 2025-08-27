@@ -108,12 +108,12 @@ fetch('data/points.json')
 
     const scatterLayout = {
       hovermode: 'closest',
-      title: title_js,
+      title: { text: title_js, y: 0.98, pad: { t: 24 } },
       xaxis: { title: xaxis_js, range: [-110,110], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
       yaxis: { title: yaxis_js, range: [-110,110], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
       paper_bgcolor: 'rgb(255,255,255)',
       plot_bgcolor:  'rgb(234,234,242)',
-      autosize: true, margin: { l:40, r:40, t:40, b:40 },
+      autosize: true, margin: { l:60, r:40, t:60, b:60 },
       clickmode: 'event+select',
       legend: { font: { size:12 }, x: 1.01, y: 0.5 }
     };
