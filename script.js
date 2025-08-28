@@ -12,7 +12,29 @@ fetch('data/points.json')
     /* define variable across rebuilds*/
     let map;                 /* current map instance*/
     let selectedId = null;   /* current selected id*/
+    let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
+    
+    function setFeatureSelected(id, val) {
+      if (!map) return;
+      try { map.setFeatureState({ source: 'points', id }, { selected: !!val }); } catch {}
+    }
+
+    function applySelectionToMap(newIdsSet) {
+      /* clear points no longer selected*/
+      for (const id of selectedIds) {
+        if (!newIdsSet.has(id)) setFeatureSelected(id, false);
+      }
+      /* set newly selected*/
+      for (const id of newIdsSet) {
+        if (!selectedIds.has(id)) setFeatureSelected(id, true);
+      }
+      selectedIds = newIdsSet;
+    }
+
+    function clearAllMapSelections() {
+      applySelectionToMap(new Set());
+    }
 
     /*spin*/
     const secondsPerRevolution = 360; /* full turn every 6 minutes(360/60)*/
@@ -26,10 +48,10 @@ fetch('data/points.json')
       const zoom = map.getZoom();
       if (zoom >= maxSpinZoom || userInteracting) return;
 
-      let dps = 360 / secondsPerRevolution; // deg/sec
+      let dps = 360 / secondsPerRevolution; /* deg/sec*/
       if (zoom > slowSpinZoom) {
         const zf = (maxSpinZoom - zoom) / (maxSpinZoom - slowSpinZoom);
-        dps *= zf; // slow down as we zoom in
+        dps *= zf; /* slow down as zoom in*/
       }
       const center = map.getCenter();
       center.lng -= dps;
@@ -83,7 +105,7 @@ fetch('data/points.json')
 
     /* build plotly traces and an id → index for quick selection*/
     const cats = Array.from(new Set(points.map(p => p.category)));
-    const idToPlotIndex = new Map(); // id -> { traceIdx, pointIdx }
+    const idToPlotIndex = new Map(); /* id -> { traceIdx, pointIdx }*/
     /* scatter traces: build one trace per category*/
     const scatterTraces = cats.map((cat, traceIdx) => {
       const pts = points.filter(p => p.category === cat);
@@ -119,6 +141,52 @@ fetch('data/points.json')
     };
 
     Plotly.newPlot('scatter-plot', scatterTraces, scatterLayout, { responsive: true });
+    
+    /*multi-select from plotly to map*/
+    const scatterDiv = document.getElementById('scatter-plot');
+    
+    /*multi-select zoom to ids on map*/
+    function fitMapToIds(idsSet) {
+      /* return if there's no map or no selection*/
+      if (!map || idsSet.size === 0) return;
+      /* filter the selected points from in-memory idsSet points array*/
+      const sel = points.filter(p => idsSet.has(p.id));
+      /*if one point selected, do flyTo let and lon*/
+      if (sel.length === 1) {
+        map.flyTo({ center: [sel[0].lon, sel[0].lat], zoom: Math.max(map.getZoom(), 12), speed: 1 });
+        return;
+      }
+      /*if multi point selected, build a bounding box encloses them and fitBound map*/
+      const b = new mapboxgl.LngLatBounds();
+      sel.forEach(p => b.extend([p.lon, p.lat]));
+      map.fitBounds(b, { 
+        padding: { 
+          top: 10, 
+          right: getSideWidthPx() + 10, /*add extra right padding so points aren't hidden under right panel */
+          bottom: 10, 
+          left: 10 } });
+    }
+
+    scatterDiv.on('plotly_selected', (e) => {
+      /* e.points is an array across traces*/
+      const ids = new Set(
+        (e?.points ?? [])
+          .map(pt => {
+            /* prefer customdata[0], else read from trace's id array*/
+            if (Array.isArray(pt.customdata)) return pt.customdata[0];
+            const traceIds = pt.data?.id;
+            return Array.isArray(traceIds) ? traceIds[pt.pointIndex] : null;
+          })
+          .filter(Boolean)
+      );
+      applySelectionToMap(ids);
+      fitMapToIds(ids)
+    });
+
+    scatterDiv.on('plotly_deselect', () => {
+      /* cleared selection on empty space*/
+      clearAllMapSelections();
+    });
 
     
     function renderThumbnails(record) {
@@ -144,6 +212,7 @@ fetch('data/points.json')
       Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, traceIndices);
     }
 
+    /*select single point on plot/map*/
     function selectOnPlotById(id) {
       const loc = idToPlotIndex.get(id);
       if (!loc) return;
@@ -165,6 +234,28 @@ fetch('data/points.json')
       }
       selectedId = id;
       try { map.setFeatureState({ source: 'points', id }, { selected: true }); } catch {}
+    }
+    
+    /*plotly modebar select*/
+    function setFeatureSelected(id, val) {
+      if (!map) return;
+      try { map.setFeatureState({ source: 'points', id }, { selected: !!val }); } catch {}
+    }
+    
+    function applySelectionToMap(newIdsSet) {
+      /* clear previous selected*/
+      for (const id of selectedIds) {
+        if (!newIdsSet.has(id)) setFeatureSelected(id, false);
+      }
+      /* set new ids selected*/
+      for (const id of newIdsSet) {
+        if (!selectedIds.has(id)) setFeatureSelected(id, true);
+      }
+      selectedIds = newIdsSet;
+    }
+
+    function clearAllMapSelections() {
+      applySelectionToMap(new Set());
     }
 
     function flyToId(id) {
@@ -243,6 +334,7 @@ fetch('data/points.json')
           const pt = evt.points && evt.points[0];
           if (!pt) return;
           const clickedId = Array.isArray(pt.customdata) ? pt.customdata[0] : pt.customdata;
+          applySelectionToMap(new Set([clickedId]));
           selectById(clickedId, { fly: true });
         });
       }
@@ -323,13 +415,13 @@ fetch('data/points.json')
   })
   .catch(console.error);
 
-// footer (guard if #footer is absent)
+/* footer*/ 
 const footer = document.getElementById('footer');
 if (footer) {
   footer.innerHTML = `© ${year} – Clark Center for Geospatial Analytics`;
 }
 
-// dropdowns (unchanged)
+/* dropdowns*/
 function toggleMenu(btn){
   const menu = btn.parentElement.querySelector('.dropdown-content');
   document.querySelectorAll('.dropdown-content.show')
