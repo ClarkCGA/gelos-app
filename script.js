@@ -313,7 +313,7 @@ fetch('data/points.json')
           type: 'fill',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static'], ['==', 'meta', 'feature']],
-          paint: { 'fill-color': '#b7d8ff', 'fill-opacity': 0.08 }
+          paint: { 'fill-color': '#FF0000', 'fill-opacity': 0.08 }
         },
         {
           /*line*/
@@ -321,7 +321,7 @@ fetch('data/points.json')
           type: 'line',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static'], ['==', 'meta', 'feature']],
-          paint: { 'line-color': '#b7d8ff', 'line-width': 2 }
+          paint: { 'line-color': '#FF0000', 'line-width': 2 }
         },
 
         /*active polygon*/
@@ -330,14 +330,14 @@ fetch('data/points.json')
           type: 'fill',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true'], ['==', 'meta', 'feature']],
-          paint: { 'fill-color': '#9ac7ff', 'fill-opacity': 0.08 }
+          paint: { 'fill-color': '#FF0000', 'fill-opacity': 0.08 }
         },
         {
           id: 'gl-draw-polygon-stroke-active',
           type: 'line',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true'], ['==', 'meta', 'feature']],
-          paint: { 'line-color': '#9ac7ff', 'line-width': 2, 'line-dasharray': [0.2, 2] }
+          paint: { 'line-color': '#FF0000', 'line-width': 2, 'line-dasharray': [0.2, 2] }
         },
 
         /*vertex*/ 
@@ -347,7 +347,7 @@ fetch('data/points.json')
           type: 'circle',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex'], ['!=', 'mode', 'static']],
-          paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#9ac7ff', 'circle-stroke-width': 1 }
+          paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#FF0000', 'circle-stroke-width': 1 }
         },
         {
           /*core point layer*/
@@ -355,16 +355,27 @@ fetch('data/points.json')
           type: 'circle',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex'], ['!=', 'mode', 'static']],
-          paint: { 'circle-radius': 3, 'circle-color': '#9ac7ff' }
+          paint: { 'circle-radius': 3, 'circle-color': '#FF0000' }
         },
-
+        {
+        /*lines*/ 
+          id: 'gl-draw-line-active',
+        type: 'line',
+        slot: 'top',
+        filter: ['all', ['==', '$type', 'LineString'], ['!=', 'mode', 'static']],
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: {
+          'line-color': '#FF0000',
+          'line-width': 2,
+        }
+        },
         /*midpoints*/ 
         {
           id: 'gl-draw-midpoint',
           type: 'circle',
           slot: 'top',
           filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint'], ['!=', 'mode', 'static']],
-          paint: { 'circle-radius': 3, 'circle-color': '#9ac7ff' }
+          paint: { 'circle-radius': 3, 'circle-color': '#FF0000' }
         }
       ]
       });
