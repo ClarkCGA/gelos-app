@@ -15,17 +15,18 @@ fetch('data/points.json')
     let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
     
+    /*plotly modebar select*/
     function setFeatureSelected(id, val) {
       if (!map) return;
       try { map.setFeatureState({ source: 'points', id }, { selected: !!val }); } catch {}
     }
-
+    
     function applySelectionToMap(newIdsSet) {
-      /* clear points no longer selected*/
+      /* clear previous selected*/
       for (const id of selectedIds) {
         if (!newIdsSet.has(id)) setFeatureSelected(id, false);
       }
-      /* set newly selected*/
+      /* set new ids selected*/
       for (const id of newIdsSet) {
         if (!selectedIds.has(id)) setFeatureSelected(id, true);
       }
@@ -34,6 +35,22 @@ fetch('data/points.json')
 
     function clearAllMapSelections() {
       applySelectionToMap(new Set());
+    }
+
+    function applySelectionToPlot(idsSet) {
+      /*build per-trace selection arrays*/
+      const perTrace = Array.from({ length: scatterTraces.length }, () => []);
+      idsSet.forEach(id => {
+        const loc = idToPlotIndex.get(id);
+        if (loc) perTrace[loc.traceIdx].push(loc.pointIdx);
+      });
+      /*apply across all traces*/
+      Plotly.restyle('scatter-plot', { selectedpoints: perTrace });
+    }
+
+    function syncBoth(idsSet) {
+      applySelectionToMap(idsSet);
+      applySelectionToPlot(idsSet);
     }
 
     /*spin*/
@@ -179,7 +196,7 @@ fetch('data/points.json')
           })
           .filter(Boolean)
       );
-      applySelectionToMap(ids);
+      syncBoth(ids);
       fitMapToIds(ids)
     });
 
@@ -278,9 +295,105 @@ fetch('data/points.json')
     
     /*map setup*/
     function setupMap() {
-      /*add controls*/
+      /*add navigation controls*/
       const navControl = new mapboxgl.NavigationControl();
       map.addControl(navControl, 'top-left');
+
+      /*add selection controls */
+      const draw = new MapboxDraw({
+        displayControlsDefault: false,
+        controls: { polygon: true, trash: true },
+        defaultMode: 'draw_polygon',
+        styles: [
+
+        /*inactive polygon*/
+        {
+          /*fill*/
+          id: 'gl-draw-polygon-fill-inactive',
+          type: 'fill',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static'], ['==', 'meta', 'feature']],
+          paint: { 'fill-color': '#b7d8ff', 'fill-opacity': 0.08 }
+        },
+        {
+          /*line*/
+          id: 'gl-draw-polygon-stroke-inactive',
+          type: 'line',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Polygon'], ['!=', 'mode', 'static'], ['==', 'meta', 'feature']],
+          paint: { 'line-color': '#b7d8ff', 'line-width': 2 }
+        },
+
+        /*active polygon*/
+        {
+          id: 'gl-draw-polygon-fill-active',
+          type: 'fill',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true'], ['==', 'meta', 'feature']],
+          paint: { 'fill-color': '#9ac7ff', 'fill-opacity': 0.08 }
+        },
+        {
+          id: 'gl-draw-polygon-stroke-active',
+          type: 'line',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Polygon'], ['==', 'active', 'true'], ['==', 'meta', 'feature']],
+          paint: { 'line-color': '#9ac7ff', 'line-width': 2, 'line-dasharray': [0.2, 2] }
+        },
+
+        /*vertex*/ 
+        {
+          /*halo layer*/
+          id: 'gl-draw-polygon-and-line-vertex-halo-active',
+          type: 'circle',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex'], ['!=', 'mode', 'static']],
+          paint: { 'circle-radius': 6, 'circle-color': '#ffffff', 'circle-stroke-color': '#9ac7ff', 'circle-stroke-width': 1 }
+        },
+        {
+          /*core point layer*/
+          id: 'gl-draw-polygon-and-line-vertex-active',
+          type: 'circle',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'vertex'], ['!=', 'mode', 'static']],
+          paint: { 'circle-radius': 3, 'circle-color': '#9ac7ff' }
+        },
+
+        /*midpoints*/ 
+        {
+          id: 'gl-draw-midpoint',
+          type: 'circle',
+          slot: 'top',
+          filter: ['all', ['==', '$type', 'Point'], ['==', 'meta', 'midpoint'], ['!=', 'mode', 'static']],
+          paint: { 'circle-radius': 3, 'circle-color': '#9ac7ff' }
+        }
+      ]
+      });
+
+      map.addControl(draw, 'top-left');
+
+      /* select points fall inside drawn polygon*/
+      function updateSelectionFromDraw() {
+        const fc = draw.getAll();
+        const polys = fc.features.filter(f =>
+          f.geometry && (f.geometry.type === 'Polygon' || f.geometry.type === 'MultiPolygon')
+        );
+        if (!polys.length) { syncBoth(new Set()); return; }
+
+        const ids = new Set();
+        /* fast path: check every point; add bbox short-circuit if needed later*/
+        for (const p of points) {
+          const pt = [p.lon, p.lat]; // turf accepts [lng, lat]
+          for (const poly of polys) {
+            if (turf.booleanPointInPolygon(pt, poly)) { ids.add(p.id); break; }
+          }
+        }
+        syncBoth(ids);
+        fitMapToIds(ids);
+      }
+
+      map.on('draw.create', updateSelectionFromDraw);
+      map.on('draw.delete', updateSelectionFromDraw);
+      map.on('draw.update', () => { syncBoth(new Set()); });
 
       map.on('load', () => {
         map.addSource('points', { type: 'geojson', data: geojson, promoteId: 'id' });
