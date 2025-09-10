@@ -14,7 +14,29 @@ fetch('data/points.json')
     let selectedId = null;   /* current selected id*/
     let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
+    let currentThumbDataset = 'sentinel_2';
+
+    const getThumbKey = s => `${s}_thumbs`;
+    const getDatesKey = s => `${s}_dates_list`;
     
+    /*choose image*/
+    function wireImageMenu() {
+      const menu = document.getElementById('image-menu');
+      if (!menu) return;
+      menu.querySelectorAll('a[thumb-dataset]').forEach(a => {
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          currentThumbDataset = a.dataset.sensor;         
+          if (selectedId != null) {                   /* switch if a point is selected, refresh thumbnails*/
+            const rec = points.find(p => p.id === selectedId);
+            if (rec) renderThumbnails(rec);
+          }
+          menu.classList.remove('show');              /*close the dropdown*/
+        });
+      });
+    }
+    wireImageMenu();
+
     /*plotly modebar select*/
     function setFeatureSelected(id, val) {
       if (!map) return;
@@ -96,7 +118,6 @@ fetch('data/points.json')
       map.once('load', () => { spinGlobe(); });
     }
 
-
     /* build geojson with "id" to use feature-state */
     const geojson = {
       type: "FeatureCollection",
@@ -105,8 +126,17 @@ fetch('data/points.json')
         id:   p.id,
         geometry: { type: "Point", coordinates: [p.lon, p.lat] },
         properties: {
-          id: p.id, color: p.color, thumbs: p.thumbs,
-          dates: p.dates_list, icon: p.icon, category: p.category
+          id: p.id, 
+          color: p.color, 
+          landsat_thumbs:     p.landsat_thumbs,
+          sentinel_1_thumbs:  p.sentinel_1_thumbs,
+          sentinel_2_thumbs:  p.sentinel_2_thumbs,
+          //dates: p.dates_list, 
+          landsat_dates_list:    p.landsat_dates_list,
+          sentinel_1_dates_list: p.sentinel_1_dates_list,
+          sentinel_2_dates_list: p.sentinel_2_dates_list,
+          icon: p.icon, 
+          category: p.category
         }
       }))
     };
@@ -205,22 +235,37 @@ fetch('data/points.json')
       clearAllMapSelections();
     });
 
-    
     function renderThumbnails(record) {
-      const cont = document.getElementById('image-container');
-      cont.innerHTML = '';
-      (record.thumbs || []).forEach((url, i) => {
-        if (!url) return;
-        const card = document.createElement('div');
-        card.style.textAlign = 'center';
-        card.style.marginBottom = '8px';
-        const img = document.createElement('img');
-        img.src = url; img.style.width = '100%'; img.style.maxHeight = '180px';
-        const lbl = document.createElement('p');
-        lbl.textContent = (record.dates_list || record.dates || [])[i] || '';
-        lbl.style.color = 'white'; lbl.style.margin = '4px 0 0'; lbl.style.fontSize = '0.9em';
-        card.appendChild(img); card.appendChild(lbl); cont.appendChild(card);
-      });
+    const cont = document.getElementById('image-container');
+    cont.innerHTML = '';
+
+    const urls  = record[getThumbKey(currentThumbDataset)] || [];
+    const dates = record[getDatesKey(currentThumbDataset)] || [];  
+
+    /*show all urls; label from dates if present at same index*/
+    urls.forEach((url, i) => {
+      if (!url) return;
+
+      const card = document.createElement('div');
+      card.style.textAlign = 'center';
+      card.style.marginBottom = '8px';
+
+      const img = document.createElement('img');
+      img.src = url;
+
+      img.style.width = '100%';
+      img.style.maxHeight = '180px';
+
+      const lbl = document.createElement('p');
+      lbl.textContent = (dates[i] ?? '').toString();
+      lbl.style.color = 'white';
+      lbl.style.margin = '4px 0 0';
+      lbl.style.fontSize = '0.9em';
+
+      card.appendChild(img);
+      card.appendChild(lbl);
+      cont.appendChild(card);
+    });
     }
 
     /* clear selection on all traces*/
@@ -251,28 +296,6 @@ fetch('data/points.json')
       }
       selectedId = id;
       try { map.setFeatureState({ source: 'points', id }, { selected: true }); } catch {}
-    }
-    
-    /*plotly modebar select*/
-    function setFeatureSelected(id, val) {
-      if (!map) return;
-      try { map.setFeatureState({ source: 'points', id }, { selected: !!val }); } catch {}
-    }
-    
-    function applySelectionToMap(newIdsSet) {
-      /* clear previous selected*/
-      for (const id of selectedIds) {
-        if (!newIdsSet.has(id)) setFeatureSelected(id, false);
-      }
-      /* set new ids selected*/
-      for (const id of newIdsSet) {
-        if (!selectedIds.has(id)) setFeatureSelected(id, true);
-      }
-      selectedIds = newIdsSet;
-    }
-
-    function clearAllMapSelections() {
-      applySelectionToMap(new Set());
     }
 
     function flyToId(id) {
@@ -393,7 +416,7 @@ fetch('data/points.json')
         const ids = new Set();
         /* fast path: check every point; add bbox short-circuit if needed later*/
         for (const p of points) {
-          const pt = [p.lon, p.lat]; // turf accepts [lng, lat]
+          const pt = [p.lon, p.lat]; /* turf accepts [lng, lat]*/
           for (const poly of polys) {
             if (turf.booleanPointInPolygon(pt, poly)) { ids.add(p.id); break; }
           }
