@@ -326,7 +326,7 @@ fetch('data/points.json')
       const draw = new MapboxDraw({
         displayControlsDefault: false,
         controls: { polygon: true, trash: true },
-        defaultMode: 'draw_polygon',
+        defaultMode: 'simple_select',
         styles: [
 
         /*inactive polygon*/
