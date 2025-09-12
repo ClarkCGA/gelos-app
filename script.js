@@ -174,12 +174,27 @@ fetch('data/points.json')
         unselected: { marker: { opacity: 0.4 } }
       };
     });
+    
+    /*compute axis xmax and ymax */
+    const extension_f = 0.1; 
+
+    const xs = points.map(p => Number(p.x)).filter(Number.isFinite);
+    const ys = points.map(p => Number(p.y)).filter(Number.isFinite);
+
+    /*check empty arrays assign d*/
+    const minOr = (arr, d) => arr.length ? Math.min(...arr) : d;
+    const maxOr = (arr, d) => arr.length ? Math.max(...arr) : d;
+
+    let xMin = minOr(xs, 0) * (1+ extension_f);
+    let xMax = maxOr(xs, 1) * (1+ extension_f);
+    let yMin = minOr(ys, 0) * (1+ extension_f);
+    let yMax = maxOr(ys, 1) * (1+ extension_f);
 
     const scatterLayout = {
       hovermode: 'closest',
       title: { text: title_js, y: 0.98, pad: { t: 24 } },
-      xaxis: { title: xaxis_js, range: [-110,110], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
-      yaxis: { title: yaxis_js, range: [-110,110], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
+      xaxis: { title: xaxis_js, range: [xMin, xMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
+      yaxis: { title: yaxis_js, range: [yMin, yMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
       paper_bgcolor: 'rgb(255,255,255)',
       plot_bgcolor:  'rgb(234,234,242)',
       autosize: true, margin: { l:60, r:40, t:60, b:60 },
