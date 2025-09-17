@@ -26,7 +26,7 @@ fetch('data/points.json')
       menu.querySelectorAll('a[thumb-dataset]').forEach(a => {
         a.addEventListener('click', (e) => {
           e.preventDefault();
-          currentThumbDataset = a.dataset.sensor;         
+          currentThumbDataset = a.getAttribute('thumb-dataset');          
           if (selectedId != null) {                   /* switch if a point is selected, refresh thumbnails*/
             const rec = points.find(p => p.id === selectedId);
             if (rec) renderThumbnails(rec);
@@ -131,7 +131,7 @@ fetch('data/points.json')
           landsat_thumbs:     p.landsat_thumbs,
           sentinel_1_thumbs:  p.sentinel_1_thumbs,
           sentinel_2_thumbs:  p.sentinel_2_thumbs,
-          //dates: p.dates_list, 
+          /*dates*/
           landsat_dates_list:    p.landsat_dates_list,
           sentinel_1_dates_list: p.sentinel_1_dates_list,
           sentinel_2_dates_list: p.sentinel_2_dates_list,
