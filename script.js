@@ -14,12 +14,41 @@ fetch('data/points.json')
     let selectedId = null;   /* current selected id*/
     let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
+    let currentModel = 'Prithvi-EO-2.0';
     let currentThumbDataset = 'sentinel_2';
 
-    const getThumbKey = s => `${s}_thumbs`;
-    const getDatesKey = s => `${s}_dates_list`;
+    const getThumbKey = (s) => `${s}_thumbs`;
+    const getDatesKey = (s) => `${s}_dates_list`;
 
     /* set the button label*/
+    /*model button*/
+    const setModelsButtonLabel = (label) => {
+      const btn = document.getElementById('models-btn');
+      if (btn) btn.innerHTML = `Models :<b> ${label}</b> <i class="fa fa-caret-down"></i>`;
+    };
+
+    /* wire up the model-menu*/
+    const modelMenu = document.getElementById('model-menu');
+    /* set initial label select from currentModel , default Prithvi-EO-2.0*/
+    if (modelMenu) {
+    function initModelsLabel() {
+      const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
+      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi-EO-2.0');
+    }
+    initModelsLabel();
+
+    /* update on click */
+    modelMenu.addEventListener('click', (e) => {
+      const link = e.target.closest('a[gfm]');
+      if (!link) return;
+      e.preventDefault();
+
+      currentModel = link.getAttribute('gfm');
+      setModelsButtonLabel(link.textContent.trim());
+    });
+    }
+
+    /*image button*/
     const setImagesButtonLabel = (label) => {
       const btn = document.getElementById('images-btn');
       if (btn) btn.innerHTML = `Images :<b> ${label}</b> <i class="fa fa-caret-down"></i>`;
@@ -281,36 +310,36 @@ fetch('data/points.json')
     });
 
     function renderThumbnails(record) {
-    const cont = document.getElementById('image-container');
-    cont.innerHTML = '';
+      const cont = document.getElementById('image-container');
+      cont.innerHTML = '';
 
-    const urls  = record[getThumbKey(currentThumbDataset)] || [];
-    const dates = record[getDatesKey(currentThumbDataset)] || [];  
+      const urls  = record[getThumbKey(currentThumbDataset)] || [];
+      const dates = record[getDatesKey(currentThumbDataset)] || [];  
 
-    /*show all urls; label from dates if present at same index*/
-    urls.forEach((url, i) => {
-      if (!url) return;
+      /*show all urls; label from dates if present at same index*/
+      urls.forEach((url, i) => {
+        if (!url) return;
 
-      const card = document.createElement('div');
-      card.style.textAlign = 'center';
-      card.style.marginBottom = '8px';
+        const card = document.createElement('div');
+        card.style.textAlign = 'center';
+        card.style.marginBottom = '8px';
 
-      const img = document.createElement('img');
-      img.src = url;
+        const img = document.createElement('img');
+        img.src = url;
 
-      img.style.width = '100%';
-      img.style.maxHeight = '180px';
+        img.style.width = '100%';
+        img.style.maxHeight = '180px';
 
-      const lbl = document.createElement('p');
-      lbl.textContent = (dates[i] ?? '').toString();
-      lbl.style.color = 'white';
-      lbl.style.margin = '4px 0 0';
-      lbl.style.fontSize = '0.9em';
+        const lbl = document.createElement('p');
+        lbl.textContent = (dates[i] ?? '').toString();
+        lbl.style.color = 'white';
+        lbl.style.margin = '4px 0 0';
+        lbl.style.fontSize = '0.9em';
 
-      card.appendChild(img);
-      card.appendChild(lbl);
-      cont.appendChild(card);
-    });
+        card.appendChild(img);
+        card.appendChild(lbl);
+        cont.appendChild(card);
+      });
     }
 
     /* clear selection on all traces*/
