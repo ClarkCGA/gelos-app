@@ -18,6 +18,36 @@ fetch('data/points.json')
 
     const getThumbKey = s => `${s}_thumbs`;
     const getDatesKey = s => `${s}_dates_list`;
+
+    /* set the button label*/
+    const setImagesButtonLabel = (label) => {
+      const btn = document.getElementById('images-btn');
+      if (btn) btn.innerHTML = `Images :<b> ${label}</b> <i class="fa fa-caret-down"></i>`;
+    };
+
+    /* wire up the image-menu*/
+    const imageMenu = document.getElementById('image-menu');
+    /* set initial label select from currentThumbDataset, default Sentinel-2*/
+    if (imageMenu) {
+    function initImagesLabel() {
+      const initial = imageMenu.querySelector(`a[thumb-dataset="${currentThumbDataset}"]`);
+      setImagesButtonLabel(initial ? initial.textContent.trim() : 'Sentinel-2');
+    }
+    initImagesLabel();
+
+    /* update on click*/
+    imageMenu.addEventListener('click', (e) => {
+      const link = e.target.closest('a[thumb-dataset]');
+      if (!link) return;
+      e.preventDefault();
+
+      const datasetKey = link.getAttribute('thumb-dataset');   /* e.g., "sentinel_1"*/
+      const label = link.textContent.trim();                   /* e.g., "sentinel_1"*/
+
+      currentThumbDataset = datasetKey;                         /* keep the state in sync*/
+      setImagesButtonLabel(label);                              /* update button label*/
+    });
+  }
     
     /*choose image*/
     function wireImageMenu() {
