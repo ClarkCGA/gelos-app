@@ -68,7 +68,7 @@ html, body {margin:0; padding:0; height:100%; overflow: hidden;}
   position: absolute;
   top: 8px; left: 8px;
   z-index: 3;       
-  background: rgba(51,51,51,0.9);
+  background: rgba(104,9,193,0.8);
   border-radius: 6px;
   overflow: visible;   /* allow dropdown extend outside the bar */
   display: flex;             
