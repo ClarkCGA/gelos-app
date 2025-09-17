@@ -229,7 +229,7 @@ fetch('data/points.json')
           `<b>y:</b> %{y:.2f}<br>` +
           `<b>lat:</b> %{customdata[1]:.4f}<br>` +
           `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-        selected:   { marker: { color: '#FF0000', size: 7 } },
+        selected:   { marker: { size: 7 } },
         unselected: { marker: { opacity: 0.4 } }
       };
     });
