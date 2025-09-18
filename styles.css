@@ -77,6 +77,9 @@ html, body {margin:0; padding:0; height:100%; overflow: hidden;}
 
   .navbar a, .dropdown .dropbtn {
   font-size: 16px; color: white; padding: 10px 14px; border: 0; background: transparent;
+  border-style: solid;
+  border-color: rgba(0,0,0,0.2);
+  border-width: 1px;
   }
 
   .navbar a { text-decoration: none; display: inline-block; }
