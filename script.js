@@ -18,7 +18,7 @@ fetch('data/points.json')
     let currentThumbDataset = 'sentinel_2';
 
     const getThumbKey = (s) => `${s}_thumbs`;
-    const getDatesKey = (s) => `${s}_dates_list`;
+    const getDatesKey = (s) => `${s}_dates`;
 
     /* set the button label*/
     /*model button*/
@@ -191,9 +191,9 @@ fetch('data/points.json')
           sentinel_1_thumbs:  p.sentinel_1_thumbs,
           sentinel_2_thumbs:  p.sentinel_2_thumbs,
           /*dates*/
-          landsat_dates_list:    p.landsat_dates_list,
-          sentinel_1_dates_list: p.sentinel_1_dates_list,
-          sentinel_2_dates_list: p.sentinel_2_dates_list,
+          landsat_dates:    p.landsat_dates,
+          sentinel_1_dates: p.sentinel_1_dates,
+          sentinel_2_dates: p.sentinel_2_dates,
           icon: p.icon, 
           category: p.category
         }
