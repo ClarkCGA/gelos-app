@@ -313,39 +313,37 @@ fetch('data/points.json')
       const cont = document.getElementById('image-container');
       cont.innerHTML = '';
 
-      const urls  = record[getThumbKey(currentThumbDataset)] || [];
-      const dates = record[getDatesKey(currentThumbDataset)] || [];  
+      const urls  = (record[getThumbKey(currentThumbDataset)] || []).slice(0, 4);
+      const dates = (record[getDatesKey(currentThumbDataset)] || []).slice(0, 4); 
 
       /*show all urls; label from dates if present at same index*/
       urls.forEach((url, i) => {
         if (!url) return;
 
         const card = document.createElement('div');
-        card.style.textAlign = 'center';
-        card.style.marginBottom = '8px';
+        card.className = 'thumb-card';
 
         const img = document.createElement('img');
         img.src = url;
+        img.className = 'thumb-img';
 
-        if (currentThumbDataset === 'landsat') {
+        /* uniform size & position */
         img.style.width  = '96px';
         img.style.height = '96px';
-        img.style.objectFit = 'contain';
-        /* nearest-neighbor*/ 
-        img.style.imageRendering = 'pixelated';
-        /*center the small fixed-size image*/
         img.style.display = 'block';
-        img.style.margin = '0 auto';
+        img.style.margin  = '0 auto';   /* center in the grid cell*/
+        img.style.objectFit = 'contain'; /*keep full image visible*/
+
+        if (currentThumbDataset === 'landsat') {
+          img.style.imageRendering = 'pixelated';
         } else {
-        /*for S1/S2*/
-        img.style.width = '100%';
-        img.style.maxHeight = '180px';}
+          /*s1 s2*/
+          img.style.imageRendering = '';
+        }
 
         const lbl = document.createElement('p');
+        lbl.className = 'thumb-label';
         lbl.textContent = (dates[i] ?? '').toString();
-        lbl.style.color = 'white';
-        lbl.style.margin = '4px 0 0';
-        lbl.style.fontSize = '0.9em';
 
         card.appendChild(img);
         card.appendChild(lbl);
