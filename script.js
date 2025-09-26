@@ -327,8 +327,19 @@ fetch('data/points.json')
         const img = document.createElement('img');
         img.src = url;
 
+        if (currentThumbDataset === 'landsat') {
+        img.style.width  = '96px';
+        img.style.height = '96px';
+        img.style.objectFit = 'contain';
+        /* nearest-neighbor*/ 
+        img.style.imageRendering = 'pixelated';
+        /*center the small fixed-size image*/
+        img.style.display = 'block';
+        img.style.margin = '0 auto';
+        } else {
+        /*for S1/S2*/
         img.style.width = '100%';
-        img.style.maxHeight = '180px';
+        img.style.maxHeight = '180px';}
 
         const lbl = document.createElement('p');
         lbl.textContent = (dates[i] ?? '').toString();
@@ -502,7 +513,6 @@ fetch('data/points.json')
       map.on('draw.create', updateSelectionFromDraw);
       map.on('draw.delete', updateSelectionFromDraw);
       map.on('draw.update', () => { syncBoth(new Set()); });
-
       map.on('load', () => {
         map.addSource('points', { type: 'geojson', data: geojson, promoteId: 'id' });
         /* base symbol layer*/
