@@ -201,7 +201,7 @@ fetch('data/points.json')
     };
 
     const styles = {
-      globe:    'mapbox://styles/clarkcga-yayao/cmcz8sdcy009g01qnhxjb67r1',
+      globe:    'mapbox://styles/clarkcga-yayao/cmg1jqrhw004r01qt3rkd6pkn',
       mercator: 'mapbox://styles/clarkcga-yayao/cme0kpqyb00ec01rybn2z7ioy'
     };
     const presets = {
