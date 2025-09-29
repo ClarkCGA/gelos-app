@@ -96,26 +96,12 @@ fetch('data/points.json')
     }
     wireImageMenu();
 
-    /*plotly modebar select*/
-    function setFeatureSelected(id, val) {
-      if (!map) return;
-      try { map.setFeatureState({ source: 'points', id }, { selected: !!val }); } catch {}
-    }
-    
     function applySelectionToMap(newIdsSet) {
-      /* clear previous selected*/
-      for (const id of selectedIds) {
-        if (!newIdsSet.has(id)) setFeatureSelected(id, false);
-      }
-      /* set new ids selected*/
-      for (const id of newIdsSet) {
-        if (!selectedIds.has(id)) setFeatureSelected(id, true);
-      }
-      selectedIds = newIdsSet;
+      highlightIdsOnMap(newIdsSet || new Set());
     }
 
     function clearAllMapSelections() {
-      applySelectionToMap(new Set());
+      highlightIdsOnMap(new Set());
     }
 
     function applySelectionToPlot(idsSet) {
@@ -132,6 +118,66 @@ fetch('data/points.json')
     function syncBoth(idsSet) {
       applySelectionToMap(idsSet);
       applySelectionToPlot(idsSet);
+    }
+
+    /* track the current selected ids globally */
+    let _currentHighlightedIds = new Set();
+
+    function highlightIdsOnMap(ids) {
+      if (!map) return;
+      _currentHighlightedIds = new Set(ids || []);
+
+      const outlineLayer = 'landcover-outline';
+      if (!map.getLayer(outlineLayer)) return;
+
+      /* default appearance*/
+      const DEFAULT_LINE_COLOR = '#ffffff';
+      const DEFAULT_LINE_WIDTH = 0.6;
+      const DEFAULT_LINE_OPACITY = 0.5;
+
+      /* build the literal list of id strings to avoid huge expressions*/
+      const MAX_HILITE = 2000;
+      const arr = Array.from(_currentHighlightedIds).slice(0, MAX_HILITE).map(String);
+
+      /* if no selection, restore to default paint */
+      if (arr.length === 0) {
+        map.setPaintProperty(outlineLayer, 'line-color', DEFAULT_LINE_COLOR);
+        map.setPaintProperty(outlineLayer, 'line-width', DEFAULT_LINE_WIDTH);
+        map.setPaintProperty(outlineLayer, 'line-opacity', DEFAULT_LINE_OPACITY);
+
+        /* clear the centroid highlight filter */
+        if (map.getLayer('centroids-highlight')) {
+          map.setFilter('centroids-highlight', ['==', ['get', 'id'], '__NONE__']);
+        }
+        return;
+      }
+
+      /* paint expressions: color/width change *per feature* if id in arr, otherwise default*/
+      const colorExpr = [
+        'case',
+          ['in', ['to-string', ['get', 'id']], ['literal', arr]], 'lime',
+          DEFAULT_LINE_COLOR
+      ];
+      const widthExpr = [
+        'case',
+          ['in', ['to-string', ['get', 'id']], ['literal', arr]], 3,
+          DEFAULT_LINE_WIDTH
+      ];
+      const opacityExpr = [
+        'case',
+          ['in', ['to-string', ['get', 'id']], ['literal', arr]], 1,
+          DEFAULT_LINE_OPACITY
+      ];
+
+      /* Apply expressions */
+      map.setPaintProperty(outlineLayer, 'line-color', colorExpr);
+      map.setPaintProperty(outlineLayer, 'line-width', widthExpr);
+      map.setPaintProperty(outlineLayer, 'line-opacity', opacityExpr);
+
+      /* highlight centroid circle(s) as a guaranteed visible indicator at all zooms*/
+      if (map.getLayer('centroids-highlight')) {
+        map.setFilter('centroids-highlight', ['in', ['to-string', ['get', 'id']], ['literal', arr]]);
+      }
     }
 
     /*spin*/
@@ -202,7 +248,7 @@ fetch('data/points.json')
 
     const styles = {
       globe:    'mapbox://styles/clarkcga-yayao/cmg1jqrhw004r01qt3rkd6pkn',
-      mercator: 'mapbox://styles/clarkcga-yayao/cme0kpqyb00ec01rybn2z7ioy'
+      mercator: 'mapbox://styles/clarkcga-yayao/cmg5akc69008g01qq4whw6e1f'
     };
     const presets = {
       globe:    { projection: 'globe',    center: [31, 30], zoom: 2   },
@@ -212,6 +258,7 @@ fetch('data/points.json')
     /* build plotly traces and an id → index for quick selection*/
     const cats = Array.from(new Set(points.map(p => p.category)));
     const idToPlotIndex = new Map(); /* id -> { traceIdx, pointIdx }*/
+    
     /* scatter traces: build one trace per category*/
     const scatterTraces = cats.map((cat, traceIdx) => {
       const pts = points.filter(p => p.category === cat);
@@ -221,16 +268,21 @@ fetch('data/points.json')
         id: pts.map(p => p.id),
         lat: pts.map(p => p.lat), lon: pts.map(p => p.lon),
         customdata: pts.map(p => [p.id, p.lat, p.lon]),
-        mode: 'markers', type: 'scatter', name: cat,
-        marker: { color: pts.map(p => p.color), size: 5, line: { color: 'black', width: 1 } },
-        hovertemplate:
-          `<b>ID:</b> %{customdata[0]}<br>` +
+        mode: 'markers',
+        type: 'scattergl',            /* WebGL to gpu*/
+        name: cat,
+        marker: {
+          color: pts.map(p => p.color),
+          size: 4,                   
+          line: { color: 'black', width: 0.5 }
+        },
+        hovertemplate: `<b>ID:</b> %{customdata[0]}<br>` +
           `<b>x:</b> %{x:.2f}<br>` +
           `<b>y:</b> %{y:.2f}<br>` +
           `<b>lat:</b> %{customdata[1]:.4f}<br>` +
           `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-        selected:   { marker: { size: 8 } },
-        unselected: { marker: { opacity: 0.2 } }
+        selected:   { marker: { size: 8, line: { color: '#0d0d0cff', width: 5 } },},
+        unselected: { marker: { opacity: 0.02 } }
       };
     });
     
@@ -258,7 +310,8 @@ fetch('data/points.json')
       plot_bgcolor:  'rgb(234,234,242)',
       autosize: true, margin: { l:60, r:40, t:60, b:60 },
       clickmode: 'event+select',
-      legend: { font: { size:12 }, x: 1.01, y: 0.5 }
+      legend: { font: { size:12 }, x: 1.01, y: 0.5 },
+      showlegend: false
     };
 
     Plotly.newPlot('scatter-plot', scatterTraces, scatterLayout, { responsive: true });
@@ -288,26 +341,22 @@ fetch('data/points.json')
           left: 10 } });
     }
 
+     /* multi-select map only*/
     scatterDiv.on('plotly_selected', (e) => {
       /* e.points is an array across traces*/
       const ids = new Set(
         (e?.points ?? [])
-          .map(pt => {
-            /* prefer customdata[0], else read from trace's id array*/
-            if (Array.isArray(pt.customdata)) return pt.customdata[0];
-            const traceIds = pt.data?.id;
-            return Array.isArray(traceIds) ? traceIds[pt.pointIndex] : null;
-          })
+          /* prefer customdata[0], else read from trace's id array*/
+          .map(pt => Array.isArray(pt.customdata) ? pt.customdata[0]
+                : (Array.isArray(pt.data?.id) ? pt.data.id[pt.pointIndex] : null))
           .filter(Boolean)
       );
-      syncBoth(ids);
-      fitMapToIds(ids)
+      highlightIdsOnMap(ids);
+      fitMapToIds(ids);
     });
 
-    scatterDiv.on('plotly_deselect', () => {
-      /* cleared selection on empty space*/
-      clearAllMapSelections();
-    });
+    /* cleared selection on empty space*/
+    scatterDiv.on('plotly_deselect', () => highlightIdsOnMap(new Set()));
 
     function renderThumbnails(record) {
       const cont = document.getElementById('image-container');
@@ -372,31 +421,57 @@ fetch('data/points.json')
       Plotly.restyle('scatter-plot', { selectedpoints: [[ loc.pointIdx ]] }, [ loc.traceIdx ]);
     }
 
-    function selectOnMapById(id) {
-      if (!map) return;
-      if (selectedId != null) {
-        try { map.setFeatureState({ source: 'points', id: selectedId }, { selected: false }); } catch {}
-      }
-      selectedId = id;
-      try { map.setFeatureState({ source: 'points', id }, { selected: true }); } catch {}
-    }
-
     function flyToId(id) {
       if (!map) return;
-      const rec = points.find(p => p.id === id);
-      if (!rec) return;
+      /* normalize id to string for robust comparison*/
+      const sid = String(id);
+
+      /* try to find record in points by flexible matching*/
+      const rec = points.find(p =>
+        /* exact match (handles same type)*/
+        p.id === id ||
+        /* numeric/string mismatch*/
+        String(p.id) === sid ||
+        /* if points might store id under different prop names (chip_id etc.)*/
+        String(p.chip_id ?? '') === sid ||
+        String(p.feature_id ?? '') === sid
+      );
+
+      if (!rec) {
+        // try to use the clicked feature geometry if available
+        // this requires the click handler to pass lat/lon as second arg
+        console.warn('flyToId: no matching record for id', id);
+        return;
+      }
+
       const currentZoom = map.getZoom();
       const targetZoom = currentZoom < 12 ? 12 : currentZoom;
       map.flyTo({ center: [rec.lon, rec.lat], zoom: targetZoom, speed: 1 });
     }
 
     function selectById(id, { fly = false } = {}) {
-      const record = points.find(p => p.id === id);
-      if (!record) return;
-      selectOnMapById(id);
-      selectOnPlotById(id);
+      const sid = String(id);
+      // find record robustly (same logic as flyToId)
+      const record = points.find(p =>
+        p.id === id || String(p.id) === sid ||
+        String(p.chip_id ?? '') === sid || String(p.feature_id ?? '') === sid
+      );
+      if (!record) {
+        console.warn('selectById: no matching record for id', id);
+        return;
+      }
+
+      /* map highlight via filter - always pass string ids */
+      highlightIdsOnMap(new Set([String(record.id)]));
+
+      /* plot single-point selection */
+      selectOnPlotById(record.id);
+
+      /* thumbnails */
       renderThumbnails(record);
-      if (fly) flyToId(id);
+
+      /* fly */
+      if (fly) flyToId(record.id);
     }
     
     /*map setup*/
@@ -511,63 +586,168 @@ fetch('data/points.json')
       map.on('draw.create', updateSelectionFromDraw);
       map.on('draw.delete', updateSelectionFromDraw);
       map.on('draw.update', () => { syncBoth(new Set()); });
+      
+      /* define the custom source type using the pmtile plugin */
+      mapboxgl.Style.setSourceType(
+      mapboxPmTiles.PmTilesSource.SOURCE_TYPE,
+      mapboxPmTiles.PmTilesSource
+      );
+
       map.on('load', () => {
-        map.addSource('points', { type: 'geojson', data: geojson, promoteId: 'id' });
-        /* base symbol layer*/
-        map.addLayer({
-          id: 'points-layer',
-          type: 'symbol',
-          source: 'points',
-          layout: {
-            'icon-image': ['get', 'icon'],
-            'icon-size': 0.8,
-            'icon-allow-overlap': true,
-            'icon-ignore-placement': true
-          }
+        /* 1. add source*/
+        /* add polygons pmtile*/
+        const SOURCE_LAYER  = "mylayer"; 
+
+        /* add landcover pmtile*/
+        map.addSource("landcover", {
+          type: mapboxPmTiles.PmTilesSource.SOURCE_TYPE,
+          url: "https://gelos-fm.s3.amazonaws.com/pmtiles/gelos_chip_tracker.pmtiles"
+        });
+        
+        /* add centroid pmtile*/
+        map.addSource('centroids', {
+          type: mapboxPmTiles.PmTilesSource.SOURCE_TYPE,
+          url: "https://gelos-fm.s3.amazonaws.com/pmtiles/centroid.pmtiles"
         });
 
-        /* highlight circle layer driven by feature-state 'selected'*/
+        /*color dictionary*/
+        const landCoverColorMatch = [
+          'match',
+          ['to-string', ['get', 'land_cover']], 
+          '1',  '#419bdf',   // Water
+          '2',  '#397d49',   // Trees
+          '5',  '#e49635',   // Crops
+          '7',  '#c4281b',   // Built area
+          '8',  '#a59b8f',   // Bare ground
+          '11', '#e3e2c3',   // Rangeland
+          /* default */ '#aaaaaa'
+        ];
+        
+        /* 2. add layer (bottom → top)*/
+        /*land cover geometry is polygons*/
         map.addLayer({
-          id: 'points-highlight',
-          type: 'circle',
-          source: 'points',
+          id: "landcover-fill",
+          type: "fill",
+          source: "landcover",
+          "source-layer": SOURCE_LAYER,
           paint: {
-            'circle-radius': 15,
-            'circle-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              '#FF0000',
-              '#f8f4f4'
-            ],
-            'circle-opacity': 1
+            "fill-color": landCoverColorMatch
+            //"fill-opacity": 0.45
           }
-        }, 'points-layer');
+        }); 
 
-        map.on('mouseenter', 'points-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'points-layer', () => { map.getCanvas().style.cursor = ''; });
-
-        /* map click → select then fly*/
-        map.on('click', 'points-layer', (e) => {
-          const feat = e.features && e.features[0];
-          if (!feat) return;
-          const id = feat.properties.id;
-          selectById(id, { fly: true });
+        /*thin outline for polygons*/
+        map.addLayer({
+          id: "landcover-outline",
+          type: "line",
+          source: "landcover",
+          "source-layer": SOURCE_LAYER,
+          paint: {
+            "line-color": "#ffffff",
+            "line-width": 0.6,
+            "line-opacity": 0.5
+          }
         });
-      });
 
-      /* plotly click → select then fly*/
-      const scatterDiv = document.getElementById('scatter-plot'); 
+
+        /* centroid circles*/
+        map.addLayer({
+          id: 'centroids-circle',
+          type: 'circle',
+          source: 'centroids',
+          'source-layer': 'mylayer',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'],
+                      0, 4,   // zoom 0 -> radius 4px
+                      8, 8,   // zoom 8 -> radius 8px
+                      12, 14  // zoom 12 -> radius 14px
+    ], 
+            'circle-color': ['coalesce', ['get', 'color'], '#3b82f6'],
+            'circle-opacity': 0.8
+          }
+        });
+
+        /* highlight*/
+        map.addLayer({
+          id: 'centroids-highlight',
+          type: 'circle',
+          source: 'centroids',
+          'source-layer': 'mylayer',
+          paint: {
+            'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 8, 10, 12, 14],
+            'circle-color': '#b1ee46',
+            'circle-opacity': 0.9,
+            'circle-stroke-color': '#b1ee46',
+            'circle-stroke-width': 2
+          },
+          filter: ['==', ['get', 'id'], '__NONE__'] // match nothing initially
+        });
+
+        /*map.on('mouseenter', 'points-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'points-layer', () => { map.getCanvas().style.cursor = ''; });*/
+
+        map.on('mouseenter', 'centroids-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+        map.on('mouseleave', 'centroids-circle', () => { map.getCanvas().style.cursor = ''; });
+        map.on('mouseenter', 'centroids-highlight', () => {map.getCanvas().style.cursor = 'pointer';});
+        map.on('mouseleave', 'centroids-highlight', () => {map.getCanvas().style.cursor = '';});
+
+        map.on('click', 'centroids-circle', (e) => {
+          const f = e.features?.[0];
+          const id = f?.properties?.id ?? f?.id;
+          if (!id) return;
+
+          /* attempt to get geometry coords from feature as fallback*/
+          const geom = f?.geometry;
+          const lat = (geom && geom.coordinates) ? geom.coordinates[1] : null;
+          const lon = (geom && geom.coordinates) ? geom.coordinates[0] : null;
+
+          /* highlight & select */
+          highlightIdsOnMap(new Set([String(id)]));
+          selectById(id, { fly: true });
+
+          /* fallback: if selectById couldn't find a record but feature provided coords, fly there*/
+          setTimeout(() => {
+            const rec = points.find(p => String(p.id) === String(id));
+            if (!rec && lat != null && lon != null) {
+              const targetZoom = Math.max(map.getZoom(), 12);
+              map.flyTo({ center: [lon, lat], zoom: targetZoom, speed: 1 });
+            }
+          }, 50);
+        });
+
+      /* plotly→mapbox: click → select then fly; lasso/box*/
+      const scatterDiv = document.getElementById('scatter-plot');
       if (scatterDiv && !scatterDiv._boundClick) {
         scatterDiv._boundClick = true;
+
+        /* single point click (fast path)*/
         scatterDiv.on('plotly_click', (evt) => {
-          const pt = evt.points && evt.points[0];
+          const pt = evt.points?.[0];
           if (!pt) return;
           const clickedId = Array.isArray(pt.customdata) ? pt.customdata[0] : pt.customdata;
-          applySelectionToMap(new Set([clickedId]));
-          selectById(clickedId, { fly: true });
+
+          highlightIdsOnMap(new Set([clickedId]));  /*use filter-based highlight*/
+          selectById(clickedId, { fly: true });     /* thumbnails + flyTo*/
         });
+
+        /* multi-select (map only; skip Plotly restyle to avoid thrash)*/
+        scatterDiv.on('plotly_selected', (e) => {
+          const ids = new Set(
+            (e?.points ?? [])
+              .map(pt => Array.isArray(pt.customdata) ? pt.customdata[0]
+                    : (Array.isArray(pt.data?.id) ? pt.data.id[pt.pointIndex] : null))
+              .filter(Boolean)
+          );
+          highlightIdsOnMap(ids);
+          fitMapToIds(ids);
+        });
+
+        /* clear highlight on deselect*/
+        scatterDiv.on('plotly_deselect', () => highlightIdsOnMap(new Set()));
       }
-    }
+
+    }); /* close map.on*/
+    } /* close setupMap*/
 
     /* set paddding */
     function getSideWidthPx() {
@@ -605,8 +785,20 @@ fetch('data/points.json')
       });
 
       applyPaddingForMode(mode);
-
       setupMap();
+
+      function registerStyledataHandler() {
+        if (!map) return;
+        if (map._hasHighlightHandler) return; // already registered for this map instance
+        map._hasHighlightHandler = true;
+
+        map.on('styledata', () => {
+          // small timeout so style has a chance to recreate layers
+          setTimeout(() => {
+            try { highlightIdsOnMap(_currentHighlightedIds); } catch (err) { /* swallow */ }
+          }, 0);
+        });
+      }
 
       /*attach spin handlers it self-checks mode */
       attachSpinHandlers();
