@@ -75,8 +75,7 @@ fetch('data/points.json')
 
       currentThumbDataset = datasetKey;                         /* keep the state in sync*/
       setImagesButtonLabel(label);                              /* update button label*/
-      currentThumbDataset = datasetKey;                         /* keep the state in sync*/
-      setImagesButtonLabel(label);                              /* update button label*/
+
 
       /* refresh thumbnails if a point is selected */
       if (selectedId != null) {
