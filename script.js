@@ -75,6 +75,14 @@ fetch('data/points.json')
 
       currentThumbDataset = datasetKey;                         /* keep the state in sync*/
       setImagesButtonLabel(label);                              /* update button label*/
+      currentThumbDataset = datasetKey;                         /* keep the state in sync*/
+      setImagesButtonLabel(label);                              /* update button label*/
+
+      /* refresh thumbnails if a point is selected */
+      if (selectedId != null) {
+        const rec = points.find(p => String(p.id) === String(selectedId));
+        if (rec) renderThumbnails(rec);
+      }
     });
   }
     
@@ -149,6 +157,12 @@ fetch('data/points.json')
         if (map.getLayer('centroids-highlight')) {
           map.setFilter('centroids-highlight', ['==', ['get', 'id'], '__NONE__']);
         }
+
+        /* clear selectedId and thumbnails UI */
+        selectedId = null;
+        const cont = document.getElementById('image-container');
+        if (cont) cont.innerHTML = '';
+
         return;
       }
 
@@ -460,6 +474,8 @@ fetch('data/points.json')
         console.warn('selectById: no matching record for id', id);
         return;
       }
+
+      selectedId = record.id;
 
       /* map highlight via filter - always pass string ids */
       highlightIdsOnMap(new Set([String(record.id)]));
