@@ -152,11 +152,6 @@ fetch('data/points.json')
         map.setPaintProperty(outlineLayer, 'line-width', DEFAULT_LINE_WIDTH);
         map.setPaintProperty(outlineLayer, 'line-opacity', DEFAULT_LINE_OPACITY);
 
-        /* clear the centroid highlight filter */
-        if (map.getLayer('centroids-highlight')) {
-          map.setFilter('centroids-highlight', ['==', ['get', 'id'], '__NONE__']);
-        }
-
         /* clear selectedId and thumbnails UI */
         selectedId = null;
         const cont = document.getElementById('image-container');
@@ -181,16 +176,41 @@ fetch('data/points.json')
           ['in', ['to-string', ['get', 'id']], ['literal', arr]], 1,
           DEFAULT_LINE_OPACITY
       ];
+      
+      /* control fill opacity per feature */
+      const SELECTED_FILL_OPACITY = 1.0;
+      const UNSELECTED_FILL_OPACITY = 0.45; 
+
+      /* make expression that normalizes whichever id property exists on the polygon */
+      const idExpr = ['to-string',
+                      ['coalesce',
+                        ['get', 'id'],
+                        ['get', 'chip_id']
+                      ]
+                    ];
+
+      const fillOpacityExpr = [
+        'case',
+          ['in', idExpr,  ['literal', arr]], SELECTED_FILL_OPACITY,
+          UNSELECTED_FILL_OPACITY
+      ];
+
+      const centroidOpacityExpr = [
+        'case',
+          ['in', idExpr, ['literal', arr]], 0.05,
+          0.1
+      ];
 
       /* Apply expressions */
       map.setPaintProperty(outlineLayer, 'line-color', colorExpr);
       map.setPaintProperty(outlineLayer, 'line-width', widthExpr);
       map.setPaintProperty(outlineLayer, 'line-opacity', opacityExpr);
 
-      /* highlight centroid circle(s) as a guaranteed visible indicator at all zooms*/
-      if (map.getLayer('centroids-highlight')) {
-        map.setFilter('centroids-highlight', ['in', ['to-string', ['get', 'id']], ['literal', arr]]);
-      }
+      /* Apply to the fill layer so non-selected polygons become faint */
+      map.setPaintProperty('landcover-fill', 'fill-opacity', fillOpacityExpr);
+
+      /* Apply to the centroid */
+      map.setPaintProperty('centroids-circle', 'circle-opacity', centroidOpacityExpr);
     }
 
     /*spin*/
@@ -647,7 +667,6 @@ fetch('data/points.json')
           "source-layer": SOURCE_LAYER,
           paint: {
             "fill-color": landCoverColorMatch
-            //"fill-opacity": 0.45
           }
         }); 
 
@@ -677,35 +696,12 @@ fetch('data/points.json')
                       8, 8,   // zoom 8 -> radius 8px
                       12, 14  // zoom 12 -> radius 14px
     ], 
-            'circle-color': ['coalesce', ['get', 'color'], '#3b82f6'],
-            'circle-opacity': 0.8
+            'circle-color': ['coalesce', ['get', 'color'], '#3b82f6']
           }
         });
 
-        /* highlight*/
-        map.addLayer({
-          id: 'centroids-highlight',
-          type: 'circle',
-          source: 'centroids',
-          'source-layer': 'mylayer',
-          paint: {
-            'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 6, 8, 10, 12, 14],
-            'circle-color': '#b1ee46',
-            'circle-opacity': 0.9,
-            'circle-stroke-color': '#b1ee46',
-            'circle-stroke-width': 2
-          },
-          filter: ['==', ['get', 'id'], '__NONE__'] // match nothing initially
-        });
-
-        /*map.on('mouseenter', 'points-layer', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'points-layer', () => { map.getCanvas().style.cursor = ''; });*/
-
         map.on('mouseenter', 'centroids-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
         map.on('mouseleave', 'centroids-circle', () => { map.getCanvas().style.cursor = ''; });
-        map.on('mouseenter', 'centroids-highlight', () => {map.getCanvas().style.cursor = 'pointer';});
-        map.on('mouseleave', 'centroids-highlight', () => {map.getCanvas().style.cursor = '';});
-
         map.on('click', 'centroids-circle', (e) => {
           const f = e.features?.[0];
           const id = f?.properties?.id ?? f?.id;
