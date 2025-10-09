@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
   <title>GELOS.io</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👻</text></svg>">
   <link href="styles.css" rel="stylesheet" />
   <script src="https://cdn.plot.ly/plotly-2.18.1.min.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/v3.13.0/mapbox-gl.js"></script>
@@ -17,7 +18,7 @@
 <body>
   <div id="header">
      <div id="left-header">
-         <a href="https://www.clarku.edu/centers/geospatial-analytics/"><img id="logo" src="data/cga-logo.png" alt="CGA logo" /></a>
+         <a href="https://www.clarku.edu/centers/geospatial-analytics/"><img id="logo" src="data/Clark_University_seal.svg" alt="CGA logo" /></a>
         <div id="header-text"><b>Geospatial Exploration of Latent Observation Space (GELOS)</b></div>
      </div>
     <div id="right-header">
@@ -27,7 +28,7 @@
   </div>
   <div id="container">
     <div id="map-wrap">
-      <div class="navbar">    
+      <div class="navbar">   
         <div class="dropdown">
           <button id="models-btn" class="dropbtn" onclick="toggleMenu(this)">Models
             <i class="fa fa-caret-down"></i>
@@ -50,6 +51,8 @@
           </div>
         </div>
       </div>
+
+      <div id="landcover-legend" aria-hidden="true"></div> 
 
       <div class="globe-map">
         <button type="button" onclick="clickFunction('globe', this)">Globe</button>
