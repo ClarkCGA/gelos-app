@@ -744,10 +744,62 @@ fetch('data/points.json')
           }
         });
 
-        map.on('mouseenter', 'centroids-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
-        map.on('mouseleave', 'centroids-circle', () => { map.getCanvas().style.cursor = ''; });
+        //map.on('mouseenter', 'centroids-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
+        //map.on('mouseleave', 'centroids-circle', () => { map.getCanvas().style.cursor = ''; });
+        
+        // single reusable hover popup (no close button)
+        let centroidHoverPopup = new mapboxgl.Popup({
+          closeButton: false,
+          closeOnClick: false,
+          className: 'centroid-hover-popup' // optional class for styling
+        });
+
+        // persistent click popup variable (we recreate on click so we keep it simple)
+        let centroidClickPopup = null;
+
+        // Helper to build popup HTML from feature and points array
+        function centroidPopupHtml(feature) {
+          const fid = feature?.properties?.id ?? feature?.id ?? '';
+          const category = feature?.properties?.category ?? '';
+          // find in-memory record (fallback to any x/y properties on the feature)
+          const rec = points.find(p => String(p.id) === String(fid));
+          const x = rec?.x ?? feature?.properties?.x ?? 'N/A';
+          const y = rec?.y ?? feature?.properties?.y ?? 'N/A';
+
+          // Format numbers if numeric
+          const fmt = v => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(4) : v);
+
+          return `<div style="font-size:13px;line-height:1.25">
+            <div><strong>ID:</strong> ${fid}</div>
+            <div><strong>Landcover:</strong> ${category}</div>
+            <div><strong>x:</strong> ${fmt(x)}</div>
+            <div><strong>y:</strong> ${fmt(y)}</div>
+          </div>`;
+        }
+
+        /* Hover: show transient popup on mouseenter, remove on mouseleave */
+        map.on('mouseenter', 'centroids-circle', (e) => {
+          map.getCanvas().style.cursor = 'pointer';
+          const f = e.features && e.features[0];
+          if (!f) return;
+
+          // coordinates from feature geometry (expected [lon, lat])
+          const coords = (f.geometry && f.geometry.coordinates) ? f.geometry.coordinates.slice() : null;
+          if (!coords) return;
+
+          // Build html and show popup slightly above the point
+          const html = centroidPopupHtml(f);
+          centroidHoverPopup.setLngLat(coords).setHTML(html).addTo(map);
+        //});
+
+        map.on('mouseleave', 'centroids-circle', () => {
+          map.getCanvas().style.cursor = '';
+          centroidHoverPopup.remove();
+        });
+
         map.on('click', 'centroids-circle', (e) => {
           const f = e.features?.[0];
+          if (!f) return;
           const id = f?.properties?.id ?? f?.id;
           if (!id) return;
 
@@ -759,6 +811,35 @@ fetch('data/points.json')
           /* highlight & select */
           highlightIdsOnMap(new Set([String(id)]));
           selectById(id, { fly: true });
+
+          // your existing selection/highlight behaviour
+          highlightIdsOnMap(new Set([String(id)]));
+          selectById(id, { fly: true });
+
+          // Remove previous click popup if any
+          if (centroidClickPopup) {
+            try { centroidClickPopup.remove(); } catch (err) { /* ignore */ }
+            centroidClickPopup = null;
+          }
+
+          // Create a clickable persistent popup (with close button)
+          const coords = (f.geometry && f.geometry.coordinates) ? f.geometry.coordinates.slice() : null;
+          const html = centroidPopupHtml(f);
+          centroidClickPopup = new mapboxgl.Popup({
+            closeButton: true,
+            closeOnClick: true,
+            className: 'centroid-click-popup'
+          })
+            .setLngLat(coords || e.lngLat) // fallback to event lngLat
+            .setHTML(html)
+            .addTo(map);
+
+          // optional: when popup closed, clear selection
+          centroidClickPopup.on('close', () => {
+            // keep behavior consistent: clear highlight & thumbnails
+            highlightIdsOnMap(new Set());
+          });
+        });
 
           /* fallback: if selectById couldn't find a record but feature provided coords, fly there*/
           setTimeout(() => {
@@ -998,7 +1079,7 @@ fetch('data/points.json')
     /* clear highlights/selected ids because selection might reference hidden features*/
     highlightIdsOnMap(new Set());
 
-    // create legend (DOM)
+    /* create legend (DOM)*/
     createLandcoverLegend();
 
     /* set paddding */
