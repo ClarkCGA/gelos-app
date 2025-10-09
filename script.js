@@ -306,7 +306,8 @@ fetch('data/points.json')
         name: cat,
         marker: {
           color: pts.map(p => p.color),
-          size: 4,                   
+          size: 4,   
+          opacity: 1,                 
           line: { color: 'black', width: 0.5 }
         },
         hovertemplate: `<b>ID:</b> %{customdata[0]}<br>` +
@@ -314,8 +315,8 @@ fetch('data/points.json')
           `<b>y:</b> %{y:.2f}<br>` +
           `<b>lat:</b> %{customdata[1]:.4f}<br>` +
           `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-        selected:   { marker: { size: 8, line: { color: '#0d0d0cff', width: 5 } },},
-        unselected: { marker: { opacity: 0.02 } }
+        selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } },},
+        unselected: { marker: { opacity: 0.1 } }
       };
     });
     
@@ -366,10 +367,11 @@ fetch('data/points.json')
       /*if multi point selected, build a bounding box encloses them and fitBound map*/
       const b = new mapboxgl.LngLatBounds();
       sel.forEach(p => b.extend([p.lon, p.lat]));
+      const totalRightPad = getSideWidthPx() + getLegendWidthPx() + 10; // +10 safety margin
       map.fitBounds(b, { 
         padding: { 
           top: 10, 
-          right: getSideWidthPx() + 10, /*add extra right padding so points aren't hidden under right panel */
+          right: totalRightPad,
           bottom: 10, 
           left: 10 } });
     }
@@ -760,14 +762,175 @@ fetch('data/points.json')
     }); /* close map.on*/
     } /* close setupMap*/
 
+    /* LEGEND: land_cover */
+    function createLandcoverLegend() {
+      const mapping = [
+        { code: '1',  color: '#419bdf', label: 'Water' },
+        { code: '2',  color: '#397d49', label: 'Trees' },
+        { code: '5',  color: '#e49635', label: 'Crops' },
+        { code: '7',  color: '#c4281b', label: 'Built area' },
+        { code: '8',  color: '#a59b8f', label: 'Bare ground' },
+        { code: '11', color: '#e3e2c3', label: 'Rangeland' }
+      ];
+
+      const cont = document.getElementById('landcover-legend');
+      if (!cont) return;
+
+      /* build content*/
+      cont.innerHTML = '';
+      const title = document.createElement('div');
+      title.className = 'legend-title';
+      title.textContent = 'Landcover';
+      cont.appendChild(title);
+
+      // maintain selected labels & codes (initially all selected)
+      const selectedLabels = new Set(mapping.map(m => m.label));
+      const selectedCodes  = new Set(mapping.map(m => m.code));
+
+      function updateSetsFromCheckboxes() {
+        selectedLabels.clear();
+        selectedCodes.clear();
+        cont.querySelectorAll('input.land-ckb').forEach(cb => {
+          if (cb.checked) {
+            selectedLabels.add(cb.dataset.label);
+            selectedCodes.add(cb.dataset.code);
+          }
+        });
+      }
+
+      // build rows with checkbox, swatch, label
+      mapping.forEach(entry => {
+        const item = document.createElement('div');
+        item.className = 'legend-item';
+
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = true;
+        cb.className = 'land-ckb';
+        cb.setAttribute('aria-label', entry.label);
+        cb.dataset.code = entry.code;   // land_cover code
+        cb.dataset.label = entry.label; // category name used in scatter traces
+
+        // small swatch label container to the right of checkbox
+        const sw = document.createElement('span');
+        sw.className = 'legend-swatch';
+        sw.style.background = entry.color;
+
+        const lbl = document.createElement('div');
+        lbl.className = 'legend-label';
+        lbl.textContent = entry.label;
+
+        // assemble: checkbox -> swatch -> label
+        item.appendChild(cb);
+        item.appendChild(sw);
+        item.appendChild(lbl);
+        cont.appendChild(item);
+
+        // wire event
+        cb.addEventListener('change', () => {
+          updateSetsFromCheckboxes();
+          applyLegendFilter(Array.from(selectedCodes), Array.from(selectedLabels));
+        });
+      });
+
+      // initial apply (all selected)
+      applyLegendFilter(Array.from(selectedCodes), Array.from(selectedLabels));
+    }
+
+    /**
+     * Apply legend filter to map layers and Plotly traces.
+     * @param {string[]} codes - array of land_cover codes (strings) to show on the map
+     * @param {string[]} labels - array of category labels to show in Plotly (trace names)
+     */
+    function applyLegendFilter(codes, labels) {
+      // --- MAP: polygons + outlines + centroids ---
+      if (map && map.getStyle()) {
+        const hasFill = !!map.getLayer('landcover-fill');
+        const hasOutline = !!map.getLayer('landcover-outline');
+        const hasCentroids = !!map.getLayer('centroids-circle');
+
+        if (codes.length === 0) {
+          // hide layers (no selection)
+          if (hasFill) map.setPaintProperty('landcover-fill', 'fill-opacity', 0);
+          if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0);
+          if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0);
+        } else {
+          // show layers, and filter by land_cover codes.
+          // For the vector PMTiles source, we use 'filter' to only show matching features.
+          try {
+            // build a literal array of codes as strings for the filter expression
+            const literalCodes = ['literal', codes.map(String)];
+
+            // landcover-fill & landcover-outline: use a filter on 'land_cover' property
+            if (hasFill) {
+              map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'land_cover']], literalCodes]);
+              // restore reasonable opacity (if you had custom expression, adjust here)
+              map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
+            }
+            if (hasOutline) {
+              map.setFilter('landcover-outline', ['in', ['to-string', ['get', 'land_cover']], literalCodes]);
+              map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
+            }
+
+            // centroids: if the centroid features also have 'land_cover' property we can filter them
+            if (hasCentroids) {
+            const literalLabels = ['literal', labels.map(String)];
+            map.setFilter('centroids-circle', ['in', ['get', 'category'], literalLabels]);
+            map.setPaintProperty('centroids-circle', 'circle-opacity', 0.9);
+          }
+        } catch (err) {
+          // fallback if setFilter fails for any layer
+          if (hasFill) map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
+          if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
+          if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0.9);
+        }
+      }// <-- close else properly
+    } // <-- close if (map && map.getStyle())
+        
+
+      // --- PLOTLY: show/hide traces by trace.name matching labels ---
+      try {
+        // If no labels selected, set every trace to hidden. Otherwise toggle each trace.
+        const noLabels = !labels || labels.length === 0;
+
+        // scatterTraces was built earlier; we can iterate and set visibility by index.
+        scatterTraces.forEach((trace, idx) => {
+          const traceName = trace.name;
+          const visible = noLabels ? 'legendonly' : (labels.includes(traceName) ? true : 'legendonly');
+          // update trace visibility
+          Plotly.restyle('scatter-plot', { visible }, [idx]);
+        });
+
+        // clear any current point selections when filters change
+        clearPlotSelections();
+      } catch (err) {
+        console.warn('applyLegendFilter: error updating Plotly traces', err);
+      }
+    }// <-- close function applyLegendFilter
+
+      // clear highlights/selected ids because selection might reference hidden features
+      highlightIdsOnMap(new Set());
+
+    // create legend right away (DOM only)
+    createLandcoverLegend();
+
     /* set paddding */
     function getSideWidthPx() {
       const el = document.getElementById('right-container');
       return el ? Math.round(el.getBoundingClientRect().width) : 0;
     }
 
+    function getLegendWidthPx() {
+      const legend = document.getElementById('landcover-legend');
+      /* add a safety margin so legend doesn't touch the panel edge*/
+      return legend ? Math.round(legend.getBoundingClientRect().width) + 12 : 0;
+    }
+
     function applyPaddingForMode(mode) {
       if (!map) return;
+      /* total right padding = panel width + legend width*/
+      const rightPad = getSideWidthPx() + getLegendWidthPx();
+
       if (mode === 'globe') {
         const rightPad = getSideWidthPx();
         /* set padding so the globe appears centered left*/
