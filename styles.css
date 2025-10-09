@@ -116,6 +116,131 @@
   .navbar a { text-decoration: none; display: inline-block; }
   .navbar a:hover, .dropdown:hover .dropbtn, .dropbtn:focus { background: #6EB7B8; border-radius: 6px;}
 
+    #landcover-legend {
+    position: absolute;
+    bottom: 16px;             /* above .globe-map
+    /* position to the left of the right panel using the CSS var --side-width */
+    right: calc(var(--side-width) + 12px);
+    z-index: 40;               /* above map layers,controls and right-container */
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 8px 10px;
+    font-family: Roboto, Helvetica, Arial, sans-serif;
+    font-size: 13px;
+    color: #222;
+    min-width: 130px;
+    pointer-events: auto;
+    box-sizing: border-box;
+  }
+
+  /* header row containing master checkbox and title */
+#landcover-legend .legend-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;               /* space between checkbox and title */
+  border-bottom: none;
+  margin-bottom: 8px;
+}
+
+/* master checkbox styling (slightly larger click target) */
+#landcover-legend .legend-master-cb {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  box-sizing: border-box;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+/* optional small "All" label beside the checkbox (if used) */
+#landcover-legend .legend-master-label {
+  font-size: 12px;
+  color: #333;
+  margin-right: 6px;
+  user-select: none;
+}
+
+  /*#landcover-legend .legend-title {
+    font-weight: 600;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }*/
+
+  /* legend title sits to the right of the checkbox (same row) */
+#landcover-legend .legend-title {
+  font-weight: 700;
+  font-size: 14px;
+  color: #111;
+  margin: 0;
+  white-space: nowrap;
+}
+
+  /* each legend item */
+  #landcover-legend .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    /*padding: 4px 0;*/
+    padding: 6px 2px;
+  cursor: default;
+  }
+
+  #landcover-legend .legend-item:hover {
+  background: rgba(0,0,0,0.02);
+}
+
+/* small checkbox for each class (keeps consistent visual weight) */
+#landcover-legend input.land-ckb {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+}
+
+
+  /* color swatch 
+  #landcover-legend .legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+    flex-shrink: 0;
+  }
+
+#landcover-legend .legend-label {
+  flex: 1;
+  line-height: 1;
+}*/
+
+/* swatch square to the right of checkbox */
+#landcover-legend .legend-swatch {
+  width: 18px;
+  height: 12px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06);
+}
+
+/* label text for the class */
+#landcover-legend .legend-label {
+  font-size: 13px;
+  color: #222;
+  margin-left: 4px;
+  user-select: none;
+}
+
+/* master row variant if you used an enclosing row for the master checkbox */
+#landcover-legend .legend-item.legend-master {
+  padding: 4px 2px;
+}
+
+/* responsive tweaks: avoid legend pushing layout on small screens */
+@media (max-width: 420px) {
+  #landcover-legend .legend-header { gap: 6px; }
+  #landcover-legend .legend-title { font-size: 13px; }
+  #landcover-legend .legend-swatch { width: 16px; height: 10px; }
+}
+
   .dropdown { position: relative; }
   .dropdown-content {
   display: none;
