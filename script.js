@@ -20,6 +20,18 @@ fetch('data/points.json')
     const getThumbKey = (s) => `${s}_thumbs`;
     const getDatesKey = (s) => `${s}_dates`;
 
+    /* add caches */
+    const idToRec = new Map(points.map(p => [String(p.id), p]));
+    const chipIdToRec = new Map(points
+      .filter(p => p.chip_id != null && String(p.chip_id) !== '')
+      .map(p => [String(p.chip_id), p])
+    );
+
+    function getRecordByAnyId(anyId) {
+      const s = String(anyId ?? '');
+      return idToRec.get(s) || chipIdToRec.get(s);
+    }
+
     /* set the button label*/
     /*model button*/
     const setModelsButtonLabel = (label) => {
@@ -743,39 +755,60 @@ fetch('data/points.json')
             'circle-opacity':1
           }
         });
-
-        //map.on('mouseenter', 'centroids-circle', () => { map.getCanvas().style.cursor = 'pointer'; });
-        //map.on('mouseleave', 'centroids-circle', () => { map.getCanvas().style.cursor = ''; });
         
-        // single reusable hover popup (no close button)
+        /* hover popup (no close button)*/
         let centroidHoverPopup = new mapboxgl.Popup({
           closeButton: false,
           closeOnClick: false,
-          className: 'centroid-hover-popup' // optional class for styling
+          className: 'centroid-hover-popup' 
         });
 
-        // persistent click popup variable (we recreate on click so we keep it simple)
-        let centroidClickPopup = null;
-
-        // Helper to build popup HTML from feature and points array
+        /* function to build popup HTML from feature and points array*/
         function centroidPopupHtml(feature) {
           const fid = feature?.properties?.id ?? feature?.id ?? '';
           const category = feature?.properties?.category ?? '';
-          // find in-memory record (fallback to any x/y properties on the feature)
-          const rec = points.find(p => String(p.id) === String(fid));
+
+          // get color from the centroid feature
+          let color =
+            feature?.properties?.color ??
+            (points.find(p => String(p.id) === String(fid))?.color) ??
+            '#3b82f6'; // safe fallback
+
+          // in-memory record (for x/y)
+          const rec = getRecordByAnyId(fid);
           const x = rec?.x ?? feature?.properties?.x ?? 'N/A';
           const y = rec?.y ?? feature?.properties?.y ?? 'N/A';
 
-          // Format numbers if numeric
-          const fmt = v => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(4) : v);
+          const fmt = v =>
+            (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(4) : v;
 
-          return `<div style="font-size:13px;line-height:1.25">
-            <div><strong>ID:</strong> ${fid}</div>
-            <div><strong>Landcover:</strong> ${category}</div>
-            <div><strong>x:</strong> ${fmt(x)}</div>
-            <div><strong>y:</strong> ${fmt(y)}</div>
-          </div>`;
+          // colored top bar + colored dot that match the centroid color
+          return `
+            <div style="font-size:13px;line-height:1.25;">
+              <div style="
+                height:4px;
+                background:${color};
+                margin:-8px -8px 8px -8px;
+                border-radius:6px 6px 0 0;
+              "></div>
+
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+                <span style="
+                  display:inline-block;width:10px;height:10px;border-radius:50%;
+                  background:${color};border:1px solid rgba(0,0,0,.3);
+                "></span>
+                <strong style="color:${color}">${category || '—'}</strong>
+              </div>
+
+              <div><strong>ID:</strong> ${fid}</div>
+              <div><strong>x:</strong> ${fmt(x)}</div>
+              <div><strong>y:</strong> ${fmt(y)}</div>
+            </div>`;
         }
+
+        /* one-time binding guard*/
+        if (!map._centroidHandlersBound) {
+          map._centroidHandlersBound = true;
 
         /* Hover: show transient popup on mouseenter, remove on mouseleave */
         map.on('mouseenter', 'centroids-circle', (e) => {
@@ -783,14 +816,14 @@ fetch('data/points.json')
           const f = e.features && e.features[0];
           if (!f) return;
 
-          // coordinates from feature geometry (expected [lon, lat])
-          const coords = (f.geometry && f.geometry.coordinates) ? f.geometry.coordinates.slice() : null;
+          // coordinates from feature geometry 
+          const coords = Array.isArray(f.geometry?.coordinates) ? f.geometry.coordinates.slice() : null;
           if (!coords) return;
 
-          // Build html and show popup slightly above the point
+          // build html and show popup slightly above the point
           const html = centroidPopupHtml(f);
           centroidHoverPopup.setLngLat(coords).setHTML(html).addTo(map);
-        //});
+        });
 
         map.on('mouseleave', 'centroids-circle', () => {
           map.getCanvas().style.cursor = '';
@@ -800,46 +833,42 @@ fetch('data/points.json')
         map.on('click', 'centroids-circle', (e) => {
           const f = e.features?.[0];
           if (!f) return;
-          const id = f?.properties?.id ?? f?.id;
+          const id = String(
+            f?.properties?.id ??
+            f?.properties?.chip_id ??
+            f?.id ?? ''
+          );
           if (!id) return;
 
           /* attempt to get geometry coords from feature as fallback*/
-          const geom = f?.geometry;
-          const lat = (geom && geom.coordinates) ? geom.coordinates[1] : null;
-          const lon = (geom && geom.coordinates) ? geom.coordinates[0] : null;
+          const coords = Array.isArray(f.geometry?.coordinates)
+          ? f.geometry.coordinates.slice()
+          : [e.lngLat.lng, e.lngLat.lat];
 
+          /* temporarily pause the globe spin*/
+          userInteracting = true;
+    
           /* highlight & select */
           highlightIdsOnMap(new Set([String(id)]));
-          selectById(id, { fly: true });
+          selectById(id, { fly: false });
 
-          // your existing selection/highlight behaviour
-          highlightIdsOnMap(new Set([String(id)]));
-          selectById(id, { fly: true });
-
-          // Remove previous click popup if any
-          if (centroidClickPopup) {
-            try { centroidClickPopup.remove(); } catch (err) { /* ignore */ }
-            centroidClickPopup = null;
-          }
-
-          // Create a clickable persistent popup (with close button)
-          const coords = (f.geometry && f.geometry.coordinates) ? f.geometry.coordinates.slice() : null;
-          const html = centroidPopupHtml(f);
-          centroidClickPopup = new mapboxgl.Popup({
-            closeButton: true,
-            closeOnClick: true,
-            className: 'centroid-click-popup'
-          })
-            .setLngLat(coords || e.lngLat) // fallback to event lngLat
-            .setHTML(html)
-            .addTo(map);
-
-          // optional: when popup closed, clear selection
-          centroidClickPopup.on('close', () => {
-            // keep behavior consistent: clear highlight & thumbnails
-            highlightIdsOnMap(new Set());
+          /* flyTo camera move*/
+          map.flyTo({
+            center: coords,
+            zoom: Math.max(map.getZoom(), 12),
+            speed: 1,         
+            curve: 1,         
+            essential: true
           });
+
+          // clean up hover popup during motion
+          try { centroidHoverPopup.remove(); } catch {}
+
+          // resume spin after motion
+          const once = () => { map.off('moveend', once); userInteracting = false; };
+          map.on('moveend', once);
         });
+      }
 
           /* fallback: if selectById couldn't find a record but feature provided coords, fly there*/
           setTimeout(() => {
@@ -849,7 +878,6 @@ fetch('data/points.json')
               map.flyTo({ center: [lon, lat], zoom: targetZoom, speed: 1 });
             }
           }, 50);
-        });
 
       /* plotly→mapbox: click → select then fly; lasso/box*/
       const scatterDiv = document.getElementById('scatter-plot');
@@ -863,7 +891,7 @@ fetch('data/points.json')
           const clickedId = Array.isArray(pt.customdata) ? pt.customdata[0] : pt.customdata;
 
           highlightIdsOnMap(new Set([clickedId]));  /*use filter-based highlight*/
-          selectById(clickedId, { fly: true });     /* thumbnails + flyTo*/
+          selectById(clickedId, { fly: false });     /* thumbnails + flyTo*/
         });
 
         /* multi-select (map only; skip Plotly restyle to avoid thrash)*/
