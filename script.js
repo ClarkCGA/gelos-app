@@ -146,17 +146,43 @@ fetch('data/points.json')
       const MAX_HILITE = 2000;
       const arr = Array.from(_currentHighlightedIds).slice(0, MAX_HILITE).map(String);
 
-      /* if no selection, restore to default paint */
+      /* apply selection to plot and dim non-selected markers */
+      try {
+        const idsSet = new Set(arr);   /* arr is already string ids*/
+        /* apply per-trace selectedpoints */
+        applySelectionToPlot(idsSet);
+
+        /* make non-selected points transparent*/
+        Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 0.1 } } });
+      } catch (err) {
+        console.warn('highlightIdsOnMap: error applying selection to Plotly', err);
+      }
+
+      /* paint expression: if no selection, restore to default paint */
       if (arr.length === 0) {
         map.setPaintProperty(outlineLayer, 'line-color', DEFAULT_LINE_COLOR);
         map.setPaintProperty(outlineLayer, 'line-width', DEFAULT_LINE_WIDTH);
         map.setPaintProperty(outlineLayer, 'line-opacity', DEFAULT_LINE_OPACITY);
+        
+        /* restore centroids to normal*/
+        if (map.getLayer('centroids-circle')) {
+          map.setPaintProperty('centroids-circle', 'circle-opacity', 1);
+        }
 
         /* clear selectedId and thumbnails UI */
         selectedId = null;
         const cont = document.getElementById('image-container');
         if (cont) cont.innerHTML = '';
 
+        /* plot: clear selections and restore no-selection visuals*/
+        try {
+          /* clear selectedpoints across all traces*/
+          clearPlotSelections();
+          /* restore unselected opacity so non-selected points are not transparent*/
+          Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 1 } } });
+        } catch (err) {
+          console.warn('highlightIdsOnMap: error restoring Plotly state', err);
+        }
         return;
       }
 
@@ -179,7 +205,7 @@ fetch('data/points.json')
       
       /* control fill opacity per feature */
       const SELECTED_FILL_OPACITY = 1.0;
-      const UNSELECTED_FILL_OPACITY = 0.45; 
+      const UNSELECTED_FILL_OPACITY = 0.20; 
 
       /* make expression that normalizes whichever id property exists on the polygon */
       const idExpr = ['to-string',
@@ -197,8 +223,8 @@ fetch('data/points.json')
 
       const centroidOpacityExpr = [
         'case',
-          ['in', idExpr, ['literal', arr]], 0.05,
-          0.1
+          ['in', idExpr, ['literal', arr]], 1, 
+          0.01
       ];
 
       /* Apply expressions */
@@ -306,7 +332,7 @@ fetch('data/points.json')
         name: cat,
         marker: {
           color: pts.map(p => p.color),
-          size: 4,   
+          size: 5,   
           opacity: 1,                 
           line: { color: 'black', width: 0.5 }
         },
@@ -316,7 +342,7 @@ fetch('data/points.json')
           `<b>lat:</b> %{customdata[1]:.4f}<br>` +
           `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
         selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } },},
-        unselected: { marker: { opacity: 0.1 } }
+        unselected: { marker: { opacity: 1 } }
       };
     });
     
@@ -376,7 +402,7 @@ fetch('data/points.json')
           left: 10 } });
     }
 
-     /* multi-select map only*/
+     /* multi-select handlers zoom to ids on map*/
     scatterDiv.on('plotly_selected', (e) => {
       /* e.points is an array across traces*/
       const ids = new Set(
@@ -386,12 +412,23 @@ fetch('data/points.json')
                 : (Array.isArray(pt.data?.id) ? pt.data.id[pt.pointIndex] : null))
           .filter(Boolean)
       );
+
+      /* fade non-selected points*/
+      if (ids.size > 0) {
+        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+      } else {
+        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+      }
       highlightIdsOnMap(ids);
       fitMapToIds(ids);
     });
 
     /* cleared selection on empty space*/
-    scatterDiv.on('plotly_deselect', () => highlightIdsOnMap(new Set()));
+    scatterDiv.on('plotly_deselect', () => {
+      /* restore full opacity for all (no transparency)*/
+      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+      highlightIdsOnMap(new Set());
+    });
 
     function renderThumbnails(record) {
       const cont = document.getElementById('image-container');
@@ -439,6 +476,8 @@ fetch('data/points.json')
     function clearPlotSelections() {
       const traceIndices = scatterTraces.map((_, i) => i);
       Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, traceIndices);
+      /* non-selected are not transparent after clearing*/
+      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
     }
 
     /*select single point on plot/map*/
@@ -696,9 +735,12 @@ fetch('data/points.json')
             'circle-radius': ['interpolate', ['linear'], ['zoom'],
                       0, 4,   // zoom 0 -> radius 4px
                       8, 8,   // zoom 8 -> radius 8px
-                      12, 14  // zoom 12 -> radius 14px
-    ], 
-            'circle-color': ['coalesce', ['get', 'color'], '#3b82f6']
+                      12, 14,  // zoom 12 -> radius 14px
+                      16, 18,  // zoom 16 -> radius 18px
+                      20, 22
+         ],
+            'circle-color': ['coalesce', ['get', 'color'], '#3b82f6'],
+            'circle-opacity':1
           }
         });
 
@@ -762,7 +804,7 @@ fetch('data/points.json')
     }); /* close map.on*/
     } /* close setupMap*/
 
-    /* LEGEND: land_cover */
+    /* legend: land_cover */
     function createLandcoverLegend() {
       const mapping = [
         { code: '1',  color: '#419bdf', label: 'Water' },
@@ -778,12 +820,29 @@ fetch('data/points.json')
 
       /* build content*/
       cont.innerHTML = '';
+
+      /* header row that holds the master checkbox and the legend title on one line*/ 
+      const headerRow = document.createElement('div');
+      headerRow.className = 'legend-header'; // make this a flex row via CSS
+      cont.appendChild(headerRow);
+      
+      /* master "All" checkbox row */
+      const masterCb = document.createElement('input');
+      masterCb.type = 'checkbox';
+      masterCb.id = 'landcover-master-cb';
+      masterCb.checked = true; // initially all selected
+      masterCb.className = 'legend-master-cb';
+      masterCb.setAttribute('aria-label', 'Select all landcover classes');
+      headerRow.appendChild(masterCb);
+
+      /* title */
       const title = document.createElement('div');
       title.className = 'legend-title';
       title.textContent = 'Landcover';
-      cont.appendChild(title);
+      title.textContent = 'Landcover';
+      headerRow.appendChild(title);
 
-      // maintain selected labels & codes (initially all selected)
+      /* maintain selected labels & codes (initially all selected)*/
       const selectedLabels = new Set(mapping.map(m => m.label));
       const selectedCodes  = new Set(mapping.map(m => m.code));
 
@@ -796,9 +855,22 @@ fetch('data/points.json')
             selectedCodes.add(cb.dataset.code);
           }
         });
+        /* update master checkbox state: checked if all checked, unchecked if none, indeterminate otherwise*/
+        const all = mapping.length;
+        const checkedCount = cont.querySelectorAll('input.land-ckb:checked').length;
+        if (checkedCount === all) {
+          masterCb.checked = true;
+          masterCb.indeterminate = false;
+        } else if (checkedCount === 0) {
+          masterCb.checked = false;
+          masterCb.indeterminate = false;
+        } else {
+          masterCb.checked = false;
+          masterCb.indeterminate = true; /*"-" visual*/
+        }
       }
 
-      // build rows with checkbox, swatch, label
+      /* build rows with checkbox, swatch, label*/
       mapping.forEach(entry => {
         const item = document.createElement('div');
         item.className = 'legend-item';
@@ -808,10 +880,10 @@ fetch('data/points.json')
         cb.checked = true;
         cb.className = 'land-ckb';
         cb.setAttribute('aria-label', entry.label);
-        cb.dataset.code = entry.code;   // land_cover code
-        cb.dataset.label = entry.label; // category name used in scatter traces
+        cb.dataset.code = entry.code;   /* land_cover code*/
+        cb.dataset.label = entry.label; /* category name used in scatter traces*/
 
-        // small swatch label container to the right of checkbox
+        /* swatch label container to the right of checkbox*/
         const sw = document.createElement('span');
         sw.className = 'legend-swatch';
         sw.style.background = entry.color;
@@ -820,51 +892,66 @@ fetch('data/points.json')
         lbl.className = 'legend-label';
         lbl.textContent = entry.label;
 
-        // assemble: checkbox -> swatch -> label
+        /* assemble: checkbox, swatch,label*/
         item.appendChild(cb);
         item.appendChild(sw);
         item.appendChild(lbl);
         cont.appendChild(item);
 
-        // wire event
+        /* wire event*/
         cb.addEventListener('change', () => {
           updateSetsFromCheckboxes();
           applyLegendFilter(Array.from(selectedCodes), Array.from(selectedLabels));
         });
       });
 
-      // initial apply (all selected)
+      /* wire event for master checkbox */
+      masterCb.addEventListener('change', () => {
+        const check = masterCb.checked;
+        /* set all child checkboxes*/
+        cont.querySelectorAll('input.land-ckb').forEach(cb => {
+          cb.checked = check;
+        });
+        /* clear indeterminate if user directly clicked master*/
+        masterCb.indeterminate = false;
+        /* update sets and apply filter*/
+        updateSetsFromCheckboxes();
+        applyLegendFilter(Array.from(selectedCodes), Array.from(selectedLabels));
+      });
+
+      /* initial apply (all selected)*/
+      updateSetsFromCheckboxes();
       applyLegendFilter(Array.from(selectedCodes), Array.from(selectedLabels));
     }
 
     /**
-     * Apply legend filter to map layers and Plotly traces.
+     * Apply legend filter to map layers and plotly traces.
      * @param {string[]} codes - array of land_cover codes (strings) to show on the map
      * @param {string[]} labels - array of category labels to show in Plotly (trace names)
      */
     function applyLegendFilter(codes, labels) {
-      // --- MAP: polygons + outlines + centroids ---
+      /*map: polygons + outlines + centroids*/
       if (map && map.getStyle()) {
         const hasFill = !!map.getLayer('landcover-fill');
         const hasOutline = !!map.getLayer('landcover-outline');
         const hasCentroids = !!map.getLayer('centroids-circle');
 
         if (codes.length === 0) {
-          // hide layers (no selection)
+          /* hide layers (no selection)*/
           if (hasFill) map.setPaintProperty('landcover-fill', 'fill-opacity', 0);
           if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0);
           if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0);
         } else {
-          // show layers, and filter by land_cover codes.
-          // For the vector PMTiles source, we use 'filter' to only show matching features.
+          /*show layers, and filter by land_cover codes.
+            pmtiles use filter to show matching features.*/
           try {
-            // build a literal array of codes as strings for the filter expression
+            /* build an array of codes as strings for the filter expression*/
             const literalCodes = ['literal', codes.map(String)];
 
-            // landcover-fill & landcover-outline: use a filter on 'land_cover' property
+            /* landcover-fill & landcover-outline: use filter on 'land_cover' property*/
             if (hasFill) {
               map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'land_cover']], literalCodes]);
-              // restore reasonable opacity (if you had custom expression, adjust here)
+              /* restore opacity */
               map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
             }
             if (hasOutline) {
@@ -872,46 +959,46 @@ fetch('data/points.json')
               map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
             }
 
-            // centroids: if the centroid features also have 'land_cover' property we can filter them
+            /* centroids*/
             if (hasCentroids) {
             const literalLabels = ['literal', labels.map(String)];
             map.setFilter('centroids-circle', ['in', ['get', 'category'], literalLabels]);
             map.setPaintProperty('centroids-circle', 'circle-opacity', 0.9);
           }
         } catch (err) {
-          // fallback if setFilter fails for any layer
+          /* fallback if setFilter fails for any layer*/
           if (hasFill) map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
           if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
           if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0.9);
         }
-      }// <-- close else properly
-    } // <-- close if (map && map.getStyle())
+      } /* close else properly*/
+    }   /* close if (map && map.getStyle())*/
         
 
-      // --- PLOTLY: show/hide traces by trace.name matching labels ---
+      /* plot: show/hide traces by trace.name matching labels*/
       try {
-        // If no labels selected, set every trace to hidden. Otherwise toggle each trace.
+        /* if no labels selected, set every trace to hidden. Otherwise toggle each trace*/
         const noLabels = !labels || labels.length === 0;
 
-        // scatterTraces was built earlier; we can iterate and set visibility by index.
+        /* iterate scatterTraces and set visibility by index.*/
         scatterTraces.forEach((trace, idx) => {
           const traceName = trace.name;
           const visible = noLabels ? 'legendonly' : (labels.includes(traceName) ? true : 'legendonly');
-          // update trace visibility
+          /* update trace visibility*/
           Plotly.restyle('scatter-plot', { visible }, [idx]);
         });
 
-        // clear any current point selections when filters change
-        clearPlotSelections();
-      } catch (err) {
-        console.warn('applyLegendFilter: error updating Plotly traces', err);
-      }
-    }// <-- close function applyLegendFilter
+        /* clear any current point selections when filters change*/
+          clearPlotSelections();
+        } catch (err) {
+          console.warn('applyLegendFilter: error updating Plotly traces', err);
+        }
+      }/* close function applyLegendFilter*/
 
-      // clear highlights/selected ids because selection might reference hidden features
-      highlightIdsOnMap(new Set());
+    /* clear highlights/selected ids because selection might reference hidden features*/
+    highlightIdsOnMap(new Set());
 
-    // create legend right away (DOM only)
+    // create legend (DOM)
     createLandcoverLegend();
 
     /* set paddding */
