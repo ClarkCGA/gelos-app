@@ -262,6 +262,24 @@
   z-index: 3;
   }
 
+  /* center the home icon inside the control button */
+    .mapboxgl-ctrl-home .mapboxgl-ctrl-icon {
+      display: flex;                /* center children horizontally & vertically */
+      align-items: center;
+      justify-content: center;
+      padding: 0;                   /* remove extra padding */
+      background-image: none !important;  /* not stack default bg icon */
+    }
+
+    /* size the SVG to sit centered */
+    .mapboxgl-ctrl-home .mapboxgl-ctrl-icon svg {
+      width: 18px;                  
+      height: 18px;
+      display: block;               /* remove baseline gap */
+      pointer-events: none;         /* click passes to the button */
+      fill: currentColor;           /* match Mapbox control color */
+    }
+
   .globe-map {
     position: absolute;
     bottom: 32px;
