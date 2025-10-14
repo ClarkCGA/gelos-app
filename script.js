@@ -96,6 +96,42 @@ fetch('data/points.json')
       }
     });
   }
+
+    function resetMapViewToDefaults() {
+
+      highlightIdsOnMap(new Set());
+      clearPlotSelections();
+
+      if (!map) return;
+
+      /* pick this mode’s defaults*/
+      const { center, zoom, projection } = presets[currentMode] || presets.globe;
+
+      /* pause the spin */
+      userInteracting = true;
+
+      /* apply padding*/
+      applyPaddingForMode(currentMode);
+
+      /* snap back to the default camera for the current mode*/
+      map.easeTo({
+        center,
+        zoom,
+        bearing: 0,
+        pitch: 0,
+        duration: 800,
+        /* keep the same projection*/
+        essential: true
+      });
+
+      /* re-spin*/
+      const once = () => {
+        map.off('moveend', once);
+        userInteracting = false;
+        spinGlobe();
+      };
+      map.on('moveend', once);
+    }
     
     /*choose image*/
     function wireImageMenu() {
@@ -567,6 +603,33 @@ fetch('data/points.json')
       /*add navigation controls*/
       const navControl = new mapboxgl.NavigationControl();
       map.addControl(navControl, 'top-left');
+
+      /* HOME control */
+      class HomeControl {
+        onAdd(_map) {
+          this._map = _map;
+          const container = document.createElement('div');
+          container.className = 'mapboxgl-ctrl mapboxgl-ctrl-group mapboxgl-ctrl-home';
+
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'mapboxgl-ctrl-icon';
+          btn.setAttribute('aria-label', 'Reset view');
+          /* house svg to matche mapbox icon style*/
+          btn.innerHTML = `
+            <svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
+              <path d="M10 3 2.5 9h1.8v8h4.2v-5h2v5h4.2V9h1.8L10 3z" />
+            </svg>`;
+          btn.addEventListener('click', resetMapViewToDefaults);
+          container.appendChild(btn);
+          return (this._container = container);
+        }
+        onRemove() {
+          this._container.remove();
+          this._map = undefined;
+        }
+      }
+      map.addControl(new HomeControl(), 'top-left');
 
       /*add selection controls */
       const draw = new MapboxDraw({
