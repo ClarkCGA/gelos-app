@@ -14,6 +14,8 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.js"></script>
   <script type="text/javascript"  src="https://cdn.jsdelivr.net/npm/mapbox-pmtiles@1/dist/mapbox-pmtiles.umd.min.js"></script>
   <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-draw/v1.5.0/mapbox-gl-draw.css" type="text/css">
+  <!-- w3.css for popup modal -->
+  <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
 </head>
 <body>
   <div id="header">
@@ -22,10 +24,52 @@
         <div id="header-text"><b>Geospatial Exploration of Latent Observation Space (GELOS)</b></div>
      </div>
     <div id="right-header">
-      <a href="">About</a>
+      <button type="button" class="button about-btn" onclick="document.getElementById('id01').style.display='block'">
+        About
+      </button>
+          
       <a href="https://github.com/ClarkCGA/gelos-app">Github</a>
     </div>
   </div>
+  <div id="id01" class="w3-modal">
+            <div class="w3-modal-content w3-animate-zoom">
+              <header class="w3-container w3-teal">
+                <span onclick="document.getElementById('id01').style.display='none'"
+                class="w3-button w3-display-topright">&times;</span>
+                <h4><b>Geospatial Exploration of Latent Observation Space (GELOS)</b></h4>
+              </header>
+              <div class="w3-container" style="text-align: left;">
+                <p>
+                  The Geospatial Exploration of Latent Observation Space (GELOS) web app was developed by the 
+                  <a href="https://www.clarku.edu/centers/geospatial-analytics/">Center for Geospatial Analytics at Clark University</a>. 
+                  It visualizes <i>t-SNE embeddings</i> generated from geospatial image chips using a foundation model.
+                </p>
+                <ul>
+                  <li>
+                    Choose Globe or Map mode from the button in the lower-left corner. Use the <b>Models</b> menu to select a geospatial foundation model. The <b>Images</b> menu toggles between 
+                    Sentinel-1, Sentinel-2, and Landsat imagery thumbnails.
+                  </li>
+                  <li>
+                    Click a point on either the map or the plot to highlight the corresponding point in both views. 
+                    You can select multiple points using the plot’s <b>Box Select</b> or <b>Lasso Select</b> tools, 
+                    or by drawing polygons directly on the map.
+                  </li>
+                  <li>
+                    Hover over a point to view its attributes, including ID, t-SNE values, and location. 
+                    Point colors represent different land-cover classes.
+                  </li>
+                  <li>
+                    Use the checkboxes in the legend to filter and explore specific land-cover classes.
+                  </li>
+                </ul>
+                <div class="viedo" style="text-align: center;">
+                <video  width="600px" height="400px" controls autoplay loop>
+                  <source src="data/video.mp4" type="video/mp4">
+                </video>
+                </div>
+              </div>
+            </div>
+          </div>
   <div id="container">
     <div id="map-wrap">
       <div class="navbar">   
