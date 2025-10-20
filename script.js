@@ -330,29 +330,6 @@ fetch('data/points.json')
       map.once('load', () => { spinGlobe(); });
     }
 
-    /* build geojson with "id" to use feature-state */
-    const geojson = {
-      type: "FeatureCollection",
-      features: points.map(p => ({
-        type: "Feature",
-        id:   p.id,
-        geometry: { type: "Point", coordinates: [p.lon, p.lat] },
-        properties: {
-          id: p.id, 
-          color: p.color, 
-          landsat_thumbs:     p.landsat_thumbs,
-          sentinel_1_thumbs:  p.sentinel_1_thumbs,
-          sentinel_2_thumbs:  p.sentinel_2_thumbs,
-          /*dates*/
-          landsat_dates:    p.landsat_dates,
-          sentinel_1_dates: p.sentinel_1_dates,
-          sentinel_2_dates: p.sentinel_2_dates,
-          icon: p.icon, 
-          category: p.category
-        }
-      }))
-    };
-
     const styles = {
       globe:    'mapbox://styles/clarkcga-yayao/cmg1jqrhw004r01qt3rkd6pkn',
       mercator: 'mapbox://styles/clarkcga-yayao/cmg5akc69008g01qq4whw6e1f'
@@ -573,7 +550,6 @@ fetch('data/points.json')
 
     function selectById(id, { fly = false } = {}) {
       const sid = String(id);
-      // find record robustly (same logic as flyToId)
       const record = points.find(p =>
         p.id === id || String(p.id) === sid ||
         String(p.chip_id ?? '') === sid || String(p.feature_id ?? '') === sid
