@@ -1,4 +1,4 @@
-const title_js  = "Visualization of Embeddings";
+const title_js  = "Embeddings";
 const xaxis_js  = "t‑SNE Dimension 1";
 const yaxis_js  = "t‑SNE Dimension 2";
 const today = new Date();
@@ -14,8 +14,21 @@ fetch('data/points.json')
     let selectedId = null;   /* current selected id*/
     let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
-    let currentModel = 'Prithvi-EO-2.0';
+    let currentModel = 'prithvi-eo-2.0';
     let currentThumbDataset = 'sentinel_2';
+
+    /* map each model name to the x/y property keys in points.json*/
+    const MODEL_FIELDS = {
+      'prithvi-eo-2.0': { x: 'prithvi_x', y: 'prithvi_y', title: 'Prithvi-EO-2.0' },
+      'model-2':        { x: 'model2_x',  y: 'model2_y',  title: 'Model 2' },
+      'model-3':        { x: 'model3_x',  y: 'model3_y',  title: 'Model 3' }
+    };
+
+    function getXYForModel(p, modelName) {
+      const f = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvi-eo-2.0'];
+      // bracket access handles JSON keys
+      return { x: p?.[f.x], y: p?.[f.y] };
+    }
 
     const getThumbKey = (s) => `${s}_thumbs`;
     const getDatesKey = (s) => `${s}_dates`;
@@ -41,11 +54,11 @@ fetch('data/points.json')
 
     /* wire up the model-menu*/
     const modelMenu = document.getElementById('model-menu');
-    /* set initial label select from currentModel , default Prithvi-EO-2.0*/
+    /* set initial label select from currentModel , default prithvi-eo-2.0*/
     if (modelMenu) {
     function initModelsLabel() {
       const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
-      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi-EO-2.0');
+      setModelsButtonLabel(initial ? initial.textContent.trim() : 'prithvi-eo-2.0');
     }
     initModelsLabel();
 
@@ -57,6 +70,23 @@ fetch('data/points.json')
 
       currentModel = link.getAttribute('gfm');
       setModelsButtonLabel(link.textContent.trim());
+
+      /* rebuild traces/layout for the newly chosen model*/
+      const { traces, layout } = buildScatterForModel(points, currentModel);
+      scatterTraces = traces;
+      scatterLayout = layout;
+
+      /* keep any highlight/selection visuals consistent after react*/
+      const prevIds = new Set(_currentHighlightedIds);
+      Plotly.react('scatter-plot', scatterTraces, scatterLayout, { responsive: true }).then(() => {
+        // re-apply selection dimming & per-trace selectedpoints
+        if (prevIds.size > 0) {
+          applySelectionToPlot(prevIds);
+          Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+        } else {
+          clearPlotSelections();
+        }
+      });
     });
     }
 
@@ -341,63 +371,87 @@ fetch('data/points.json')
 
     /* build plotly traces and an id → index for quick selection*/
     const cats = Array.from(new Set(points.map(p => p.category)));
-    const idToPlotIndex = new Map(); /* id -> { traceIdx, pointIdx }*/
-    
-    /* scatter traces: build one trace per category*/
-    const scatterTraces = cats.map((cat, traceIdx) => {
-      const pts = points.filter(p => p.category === cat);
-      pts.forEach((p, i) => idToPlotIndex.set(p.id, { traceIdx, pointIdx: i }));
-      return {
-        x: pts.map(p => p.x), y: pts.map(p => p.y),
-        id: pts.map(p => p.id),
-        lat: pts.map(p => p.lat), lon: pts.map(p => p.lon),
-        customdata: pts.map(p => [p.id, p.lat, p.lon]),
-        mode: 'markers',
-        type: 'scattergl',            /* WebGL to gpu*/
-        name: cat,
-        marker: {
-          color: pts.map(p => p.color),
-          size: 5,   
-          opacity: 1,                 
-          line: { color: 'black', width: 0.5 }
-        },
-        hovertemplate: `<b>ID:</b> %{customdata[0]}<br>` +
-          `<b>x:</b> %{x:.2f}<br>` +
-          `<b>y:</b> %{y:.2f}<br>` +
-          `<b>lat:</b> %{customdata[1]:.4f}<br>` +
-          `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-        selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } },},
-        unselected: { marker: { opacity: 1 } }
+    let idToPlotIndex = new Map(); /* id -> { traceIdx, pointIdx }*/
+
+    let scatterTraces = [];
+    let scatterLayout = {};
+
+    function buildScatterForModel(points, modelName) {
+      const cats = Array.from(new Set(points.map(p => p.category)));
+      idToPlotIndex = new Map();
+
+      /* traces*/
+      const traces = cats.map((cat, traceIdx) => {
+        const pts = points.filter(p => p.category === cat);
+
+        const xs = [];
+        const ys = [];
+        const ids = [];
+        const lats = [];
+        const lons = [];
+        const colors = [];
+        const custom = [];
+
+        pts.forEach((p, i) => {
+          const { x, y } = getXYForModel(p, modelName);
+          xs.push(x);
+          ys.push(y);
+          ids.push(p.id);
+          lats.push(p.lat);
+          lons.push(p.lon);
+          colors.push(p.color);
+          custom.push([p.id, p.lat, p.lon]);
+          idToPlotIndex.set(p.id, { traceIdx, pointIdx: i });
+        });
+
+        return {
+          x: xs, y: ys, id: ids, lat: lats, lon: lons, customdata: custom,
+          mode: 'markers', 
+          type: 'scattergl', // WebGL to gpu
+          name: cat,
+          marker: { color: colors, size: 5, opacity: 1, line: { color: 'black', width: 0.5 } },
+          hovertemplate:
+            `<b>ID:</b> %{customdata[0]}<br>` +
+            `<b>x:</b> %{x:.2f}<br>` +
+            `<b>y:</b> %{y:.2f}<br>` +
+            `<b>lat:</b> %{customdata[1]:.4f}<br>` +
+            `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
+          selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } } },
+          unselected: { marker: { opacity: 1 } }
+        };
+      });
+
+      /* ranges per model (compute axis xmax and ymax)*/
+      const extension_f = 0.1;
+      const xsAll = points.map(p => getXYForModel(p, modelName).x).filter(Number.isFinite);
+      const ysAll = points.map(p => getXYForModel(p, modelName).y).filter(Number.isFinite);
+      const minOr = (arr, d) => arr.length ? Math.min(...arr) : d;
+      const maxOr = (arr, d) => arr.length ? Math.max(...arr) : d;
+
+      const xMin = minOr(xsAll, 0) * (1 + extension_f);
+      const xMax = maxOr(xsAll, 1) * (1 + extension_f);
+      const yMin = minOr(ysAll, 0) * (1 + extension_f);
+      const yMax = maxOr(ysAll, 1) * (1 + extension_f);
+
+      const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvi-eo-2.0'];
+      const layout = {
+        hovermode: 'closest',
+        title: { text: `${title_js} — ${fields.title}`, y: 0.98, pad: { t: 24 } },
+        xaxis: { title: xaxis_js, range: [xMin, xMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
+        yaxis: { title: yaxis_js, range: [yMin, yMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
+        paper_bgcolor: 'rgb(255,255,255)',
+        plot_bgcolor:  'rgb(234,234,242)',
+        autosize: true, margin: { l:60, r:40, t:60, b:60 },
+        clickmode: 'event+select',
+        legend: { font: { size:12 }, x: 1.01, y: 0.5 },
+        showlegend: false
       };
-    });
-    
-    /*compute axis xmax and ymax */
-    const extension_f = 0.1; 
 
-    const xs = points.map(p => Number(p.x)).filter(Number.isFinite);
-    const ys = points.map(p => Number(p.y)).filter(Number.isFinite);
+      return { traces, layout };
+    }
 
-    /*check empty arrays assign d*/
-    const minOr = (arr, d) => arr.length ? Math.min(...arr) : d;
-    const maxOr = (arr, d) => arr.length ? Math.max(...arr) : d;
-
-    let xMin = minOr(xs, 0) * (1+ extension_f);
-    let xMax = maxOr(xs, 1) * (1+ extension_f);
-    let yMin = minOr(ys, 0) * (1+ extension_f);
-    let yMax = maxOr(ys, 1) * (1+ extension_f);
-
-    const scatterLayout = {
-      hovermode: 'closest',
-      title: { text: title_js, y: 0.98, pad: { t: 24 } },
-      xaxis: { title: xaxis_js, range: [xMin, xMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
-      yaxis: { title: yaxis_js, range: [yMin, yMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
-      paper_bgcolor: 'rgb(255,255,255)',
-      plot_bgcolor:  'rgb(234,234,242)',
-      autosize: true, margin: { l:60, r:40, t:60, b:60 },
-      clickmode: 'event+select',
-      legend: { font: { size:12 }, x: 1.01, y: 0.5 },
-      showlegend: false
-    };
+    /* initial render*/ 
+    ({ traces: scatterTraces, layout: scatterLayout } = buildScatterForModel(points, currentModel));
 
     Plotly.newPlot('scatter-plot', scatterTraces, scatterLayout, { responsive: true });
     
@@ -813,10 +867,11 @@ fetch('data/points.json')
             (points.find(p => String(p.id) === String(fid))?.color) ??
             '#3b82f6'; // safe fallback
 
-          // in-memory record (for x/y)
+          // in-memory record (for pop-up x/y)
           const rec = getRecordByAnyId(fid);
-          const x = rec?.x ?? feature?.properties?.x ?? 'N/A';
-          const y = rec?.y ?? feature?.properties?.y ?? 'N/A';
+          const xy  = rec ? getXYForModel(rec, currentModel) : null;
+          const x   = xy?.x ?? feature?.properties?.x ?? 'N/A';
+          const y   = xy?.y ?? feature?.properties?.y ?? 'N/A';
 
           const fmt = v =>
             (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(4) : v;
@@ -908,15 +963,6 @@ fetch('data/points.json')
           map.on('moveend', once);
         });
       }
-
-          /* fallback: if selectById couldn't find a record but feature provided coords, fly there*/
-          setTimeout(() => {
-            const rec = points.find(p => String(p.id) === String(id));
-            if (!rec && lat != null && lon != null) {
-              const targetZoom = Math.max(map.getZoom(), 12);
-              map.flyTo({ center: [lon, lat], zoom: targetZoom, speed: 1 });
-            }
-          }, 50);
 
       /* plotly→mapbox: click → select then fly; lasso/box*/
       const scatterDiv = document.getElementById('scatter-plot');
