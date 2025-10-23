@@ -1236,7 +1236,8 @@ fetch('data/points.json')
         style: styles[mode],
         projection: presets[mode].projection,
         center: presets[mode].center,
-        zoom: presets[mode].zoom
+        zoom: presets[mode].zoom,
+        attributionControl: false,  // turn off the default attribution
       });
 
       applyPaddingForMode(mode);
