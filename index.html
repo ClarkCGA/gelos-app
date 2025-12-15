@@ -40,26 +40,27 @@
               </header>
               <div class="w3-container" style="text-align: left;">
                 <p>
-                  The Geospatial Exploration of Latent Observation Space (GELOS) web app was developed by the 
+                  The Geospatial Exploration of Latent Observation Space (GELOS) web app is developed by the
                   <a href="https://www.clarku.edu/centers/geospatial-analytics/">Center for Geospatial Analytics at Clark University</a>. 
-                  It visualizes <i>t-SNE embeddings</i> generated from geospatial image chips using a foundation model.
+                  It visualizes <i>t-SNE projection of embeddings</i>  generated from image chips with homogenous land cover. Different geospatial foundation models and combinations of embeddings are included in the app. How to use:
                 </p>
                 <ul>
                   <li>
-                    Choose Globe or Map mode from the button in the lower-left corner. Use the <b>Models</b> menu to select a geospatial foundation model. The <b>Images</b> menu toggles between 
-                    Sentinel-1, Sentinel-2, and Landsat imagery thumbnails.
+                    Choose Globe or Map mode in the lower-left corner.
                   </li>
                   <li>
-                    Click a point on either the map or the plot to highlight the corresponding point in both views. 
-                    You can select multiple points using the plot’s <b>Box Select</b> or <b>Lasso Select</b> tools, 
-                    or by drawing polygons directly on the map.
+                    Use the <b>Models</b> menu to select a geospatial foundation model and embedding type.
                   </li>
                   <li>
-                    Hover over a point to view its attributes, including ID, t-SNE values, and location. 
-                    Point colors represent different land-cover classes.
+                    The <b>Images</b> menu toggles between Sentinel-1, Sentinel-2, and Landsat imagery thumbnails.
+                  </li>
+                    Click a point on either the map or the t-SNE plot to highlight the corresponding point in both views. You can select multiple points using the plot’s <b>Box Select</b> or <b>Lasso Select</b> tools, or by drawing polygons directly on the map.
                   </li>
                   <li>
-                    Use the checkboxes in the legend to filter and explore specific land-cover classes.
+                    Hover over a point to view its attributes, including ID, t-SNE values, and location.
+                  </li>
+                  <li>
+                    Point colors represent different land cover classes (6 total). Use the checkboxes in the legend to filter and explore specific land cover classes.
                   </li>
                 </ul>
                 <div class="viedo" style="text-align: center;">
