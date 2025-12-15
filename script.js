@@ -516,44 +516,78 @@ fetch('data/points.json')
 
     function renderThumbnails(record) {
       const cont = document.getElementById('image-container');
+      if (!cont) return;
       cont.innerHTML = '';
 
-      const urls  = (record[getThumbKey(currentThumbDataset)] || []).slice(0, 4);
-      const dates = (record[getDatesKey(currentThumbDataset)] || []).slice(0, 4); 
+      const rawUrls = record?.[getThumbKey(currentThumbDataset)];
+      const rawDates = record?.[getDatesKey(currentThumbDataset)];
 
-      /*show all urls; label from dates if present at same index*/
-      urls.forEach((url, i) => {
-        if (!url) return;
+      function coerceToArray(raw) {
+        if (raw == null) return [];
+        if (Array.isArray(raw)) return raw;
+        if (typeof raw !== 'string') return [raw];
+        const s = raw.trim();
 
-        const card = document.createElement('div');
-        card.className = 'thumb-card';
-
-        const img = document.createElement('img');
-        img.src = url;
-        img.className = 'thumb-img';
-
-        /* uniform size & position */
-        img.style.width  = '96px';
-        img.style.height = '96px';
-        img.style.display = 'block';
-        img.style.margin  = '0 auto';   /* center in the grid cell*/
-        img.style.objectFit = 'contain'; /*keep full image visible*/
-
-        if (currentThumbDataset === 'landsat') {
-          img.style.imageRendering = 'pixelated';
-        } else {
-          /*s1 s2*/
-          img.style.imageRendering = '';
+        // try JSON.parse for well-formed JSON arrays
+        if (s.startsWith('[') && s.endsWith(']')) {
+          try { return JSON.parse(s); } catch (e) {
+            // try replacing single quotes with double quotes then parse
+            try { return JSON.parse(s.replace(/'/g, '"')); } catch (e2) { /* fallthrough */ }
+          }
         }
 
-        const lbl = document.createElement('p');
-        lbl.className = 'thumb-label';
-        lbl.textContent = (dates[i] ?? '').toString();
+        // extract quoted tokens '...' or "..."
+        const quoted = [];
+        const re = /'([^']*)'|"([^"]*)"/g;
+        let m;
+        while ((m = re.exec(s)) !== null) {
+          quoted.push(m[1] || m[2]);
+        }
+        if (quoted.length) return quoted;
 
-        card.appendChild(img);
-        card.appendChild(lbl);
-        cont.appendChild(card);
-      });
+        // Fallback: split on commas
+        return s.split(',').map(x => x.trim()).filter(Boolean);
+      }
+
+      const urls = coerceToArray(rawUrls).slice(0, 4);
+      const dates = coerceToArray(rawDates).slice(0, 4);
+
+      /* show all urls; label from dates if present at same index */
+      try {
+        urls.forEach((url, i) => {
+          if (!url) return;
+
+          const card = document.createElement('div');
+          card.className = 'thumb-card';
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.className = 'thumb-img';
+
+          /* uniform size & position */
+          img.style.width  = '96px';
+          img.style.height = '96px';
+          img.style.display = 'block';
+          img.style.margin  = '0 auto';   /* center in the grid cell*/
+          img.style.objectFit = 'contain'; /*keep full image visible*/
+
+          if (currentThumbDataset === 'landsat') {
+            img.style.imageRendering = 'pixelated';
+          } else {
+            img.style.imageRendering = '';
+          }
+
+          const lbl = document.createElement('p');
+          lbl.className = 'thumb-label';
+          lbl.textContent = (dates[i] ?? '').toString();
+
+          card.appendChild(img);
+          card.appendChild(lbl);
+          cont.appendChild(card);
+        });
+      } catch (err) {
+        console.warn('renderThumbnails: failed to render thumbnails', err, rawUrls);
+      }
     }
 
     /* clear selection on all traces*/
