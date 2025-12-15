@@ -4,7 +4,9 @@ const yaxis_js  = "t‑SNE Dimension 2";
 const today = new Date();
 const year  = today.getFullYear();
 
-fetch('data/points.json')
+const points = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
+
+fetch(points)
   .then(res => res.json())
   .then(points => {
     mapboxgl.accessToken = 'pk.eyJ1IjoiY2xhcmtjZ2EteWF5YW8iLCJhIjoiY21jdDl0MDZoMDM3cjJscHBmcWpjbnhkaiJ9.YkEYejNsY5-r3DtESJ46kQ';
