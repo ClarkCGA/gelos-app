@@ -9,7 +9,7 @@ const points = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
 fetch(points)
   .then(res => res.json())
   .then(points => {
-    mapboxgl.accessToken = MAPBOX_ACCESS_TOKEN;
+    mapboxgl.accessToken = window.MAPBOX_APIKey;
 
     /* define variable across rebuilds*/
     let map;                 /* current map instance*/
