@@ -19,13 +19,18 @@ fetch('data/points.json')
 
     /* map each model name to the x/y property keys in points.json*/
     const MODEL_FIELDS = {
-      'prithvi-eo-2.0': { x: 'prithvi_x', y: 'prithvi_y', title: 'Prithvi-EO-2.0' },
-      'model-2':        { x: 'model2_x',  y: 'model2_y',  title: 'Model 2' },
-      'model-3':        { x: 'model3_x',  y: 'model3_y',  title: 'Model 3' }
+      'prithvieov2300m_allpatchesfromapriltojune': { x: 'prithvieov2300m_allpatchesfromapriltojune_tsne_x', y: 'prithvieov2300m_allpatchesfromapriltojune_tsne_y', title: 'Prithvi-EO-2.0-300m: All Patches from April to June' },
+      'prithvieov2300m_allstepsofmiddlepatch':        { x: 'prithvieov2300m_allstepsofmiddlepatch_tsne_x',  y: 'prithvieov2300m_allstepsofmiddlepatch_tsne_y',  title: 'Prithvi-EO-2.0-300m: All Steps of Middle Patch' },
+      'prithvieov2300m_clstoken':        { x: 'prithvieov2300m_clstoken_tsne_x',  y: 'prithvieov2300m_clstoken_tsne_y',  title: 'Prithvi-EO-2.0-300m: Clstoken' },
+      'prithvieov2600m_allpatchesfromapriltojune': { x: 'prithvieov2600m_allpatchesfromapriltojune_tsne_x', y: 'prithvieov2600m_allpatchesfromapriltojune_tsne_y', title: 'Prithvi-EO-2.0-600m: All Patches from April to June' },
+      'prithvieov2600m_allstepsofmiddlepatch':        { x: 'prithvieov2600m_allstepsofmiddlepatch_tsne_x',  y: 'prithvieov2600m_allstepsofmiddlepatch_tsne_y',  title: 'Prithvi-EO-2.0-600m: All Steps of Middle Patch' },
+      'prithvieov2600m_clstoken':        { x: 'prithvieov2600m_clstoken_tsne_x',  y: 'prithvieov2600m_clstoken_tsne_y',  title: 'Prithvi-EO-2.0-600m: Clstoken' },
+      'terramindv1base_allpatchesfromapriltojune': { x: 'terramindv1base_allpatchesfromapriltojune_tsne_x', y: 'terramindv1base_allpatchesfromapriltojune_tsne_y', title: 'Terramindv1base: All Patches from April to June' },
+      'terramindv1base_allstepsofmiddlepatch':        { x: 'terramindv1base_allstepsofmiddlepatch_tsne_x',  y: 'terramindv1base_allstepsofmiddlepatch_tsne_y',  title: 'Terramindv1base: All Steps of Middle Patch' },
     };
 
     function getXYForModel(p, modelName) {
-      const f = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvi-eo-2.0'];
+      const f = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvieov2300m_allpatchesfromapriltojune'];
       // bracket access handles JSON keys
       return { x: p?.[f.x], y: p?.[f.y] };
     }
@@ -58,7 +63,7 @@ fetch('data/points.json')
     if (modelMenu) {
     function initModelsLabel() {
       const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
-      setModelsButtonLabel(initial ? initial.textContent.trim() : 'prithvi-eo-2.0');
+      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi-EO-2.0-300m: All Patches from April to June');
     }
     initModelsLabel();
 
@@ -433,10 +438,10 @@ fetch('data/points.json')
       const yMin = minOr(ysAll, 0) * (1 + extension_f);
       const yMax = maxOr(ysAll, 1) * (1 + extension_f);
 
-      const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvi-eo-2.0'];
+      const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvieov2300m_allpatchesfromapriltojune'];
       const layout = {
         hovermode: 'closest',
-        title: { text: `${title_js} — ${fields.title}`, y: 0.98, pad: { t: 24 } },
+        title: { text: `${fields.title}`, y: 0.98, pad: { t: 24 } },
         xaxis: { title: xaxis_js, range: [xMin, xMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
         yaxis: { title: yaxis_js, range: [yMin, yMax], showgrid: true, gridcolor: 'rgb(255,255,255)', gridwidth: 1, showline: false, zeroline: false, showticklabels: true, ticks: 'outside', tickcolor: 'rgb(127,127,127)' },
         paper_bgcolor: 'rgb(255,255,255)',
@@ -777,30 +782,29 @@ fetch('data/points.json')
       map.on('load', () => {
         /* 1. add source*/
         /* add polygons pmtile*/
-        const SOURCE_LAYER  = "mylayer"; 
+        const SOURCE_LAYER  = "gelos_chips"; 
 
         /* add landcover pmtile*/
         map.addSource("landcover", {
           type: mapboxPmTiles.PmTilesSource.SOURCE_TYPE,
           url: "https://gelos-fm.s3.amazonaws.com/pmtiles/gelos_chip_tracker.pmtiles"
         });
-        
-        /* add centroid pmtile*/
+
         map.addSource('centroids', {
           type: mapboxPmTiles.PmTilesSource.SOURCE_TYPE,
-          url: "https://gelos-fm.s3.amazonaws.com/pmtiles/centroid.pmtiles"
+          url: "https://gelos-fm.s3.amazonaws.com/pmtiles/centroids.pmtiles"
         });
 
         /*color dictionary*/
         const landCoverColorMatch = [
           'match',
-          ['to-string', ['get', 'land_cover']], 
-          '1',  '#419bdf',   // Water
-          '2',  '#397d49',   // Trees
-          '5',  '#e49635',   // Crops
-          '7',  '#c4281b',   // Built area
-          '8',  '#a59b8f',   // Bare ground
-          '11', '#e3e2c3',   // Rangeland
+          ['to-string', ['get', 'category']], 
+          'Water',  '#419bdf',   // Water
+          'Trees',  '#397d49',   // Trees
+          'Crops',  '#e49635',   // Crops
+          'Built area',  '#c4281b',   // Built area
+          'Bare ground',  '#a59b8f',   // Bare ground
+          'Rangeland', '#e3e2c3',   // Rangeland
           /* default */ '#aaaaaa'
         ];
         
@@ -835,7 +839,7 @@ fetch('data/points.json')
           id: 'centroids-circle',
           type: 'circle',
           source: 'centroids',
-          'source-layer': 'mylayer',
+          'source-layer': 'gelos_centroids',
           paint: {
             'circle-radius': ['interpolate', ['linear'], ['zoom'],
                       0, 4,   // zoom 0 -> radius 4px
@@ -998,7 +1002,7 @@ fetch('data/points.json')
     }); /* close map.on*/
     } /* close setupMap*/
 
-    /* legend: land_cover */
+    /* legend: category */
     function createLandcoverLegend() {
       const mapping = [
         { code: '1',  color: '#419bdf', label: 'Water' },
@@ -1074,7 +1078,7 @@ fetch('data/points.json')
         cb.checked = true;
         cb.className = 'land-ckb';
         cb.setAttribute('aria-label', entry.label);
-        cb.dataset.code = entry.code;   /* land_cover code*/
+        cb.dataset.code = entry.code;   /* category code*/
         cb.dataset.label = entry.label; /* category name used in scatter traces*/
 
         /* swatch label container to the right of checkbox*/
@@ -1120,7 +1124,7 @@ fetch('data/points.json')
 
     /**
      * Apply legend filter to map layers and plotly traces.
-     * @param {string[]} codes - array of land_cover codes (strings) to show on the map
+     * @param {string[]} codes - array of category codes (strings) to show on the map
      * @param {string[]} labels - array of category labels to show in Plotly (trace names)
      */
     function applyLegendFilter(codes, labels) {
@@ -1136,20 +1140,20 @@ fetch('data/points.json')
           if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0);
           if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0);
         } else {
-          /*show layers, and filter by land_cover codes.
+          /*show layers, and filter by category codes.
             pmtiles use filter to show matching features.*/
           try {
             /* build an array of codes as strings for the filter expression*/
             const literalCodes = ['literal', codes.map(String)];
 
-            /* landcover-fill & landcover-outline: use filter on 'land_cover' property*/
+            /* landcover-fill & landcover-outline: use filter on 'category' property*/
             if (hasFill) {
-              map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'land_cover']], literalCodes]);
+              map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'category']], literalCodes]);
               /* restore opacity */
               map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
             }
             if (hasOutline) {
-              map.setFilter('landcover-outline', ['in', ['to-string', ['get', 'land_cover']], literalCodes]);
+              map.setFilter('landcover-outline', ['in', ['to-string', ['get', 'category']], literalCodes]);
               map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
             }
 
