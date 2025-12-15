@@ -271,11 +271,12 @@ fetch(points)
         return;
       }
 
-      /* paint expressions: color/width change *per feature* if id in arr, otherwise default*/
+
+      // Use each feature's own color as highlight
       const colorExpr = [
-        'case',
-          ['in', ['to-string', ['get', 'id']], ['literal', arr]], 'lime',
-          DEFAULT_LINE_COLOR
+        'coalesce',
+        ['get', 'color'],
+        DEFAULT_LINE_COLOR
       ];
       const widthExpr = [
         'case',
