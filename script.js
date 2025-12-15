@@ -528,10 +528,14 @@ fetch('data/points.json')
         if (typeof raw !== 'string') return [raw];
         const s = raw.trim();
 
-        // try JSON.parse for well-formed JSON arrays
+        // if the whole string is wrapped in single or double quotes, remove them
+        if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {
+          s = s.slice(1, -1).trim();
+        }
+
+        // try JSON.parse for well-formed JSON arrays (after cleaning)
         if (s.startsWith('[') && s.endsWith(']')) {
           try { return JSON.parse(s); } catch (e) {
-            // try replacing single quotes with double quotes then parse
             try { return JSON.parse(s.replace(/'/g, '"')); } catch (e2) { /* fallthrough */ }
           }
         }
@@ -545,8 +549,10 @@ fetch('data/points.json')
         }
         if (quoted.length) return quoted;
 
-        // Fallback: split on commas
-        return s.split(',').map(x => x.trim()).filter(Boolean);
+        // Fallback: split on commas and strip stray quotes from each token
+        return s.split(',')
+                .map(x => x.trim().replace(/^['"]|['"]$/g, ''))
+                .filter(Boolean);
       }
 
       const urls = coerceToArray(rawUrls).slice(0, 4);
@@ -905,11 +911,14 @@ fetch('data/points.json')
             (points.find(p => String(p.id) === String(fid))?.color) ??
             '#3b82f6'; // safe fallback
 
-          // in-memory record (for pop-up x/y)
+          // in-memory record (for pop-up x/y and lat/lon)
           const rec = getRecordByAnyId(fid);
           const xy  = rec ? getXYForModel(rec, currentModel) : null;
           const x   = xy?.x ?? feature?.properties?.x ?? 'N/A';
           const y   = xy?.y ?? feature?.properties?.y ?? 'N/A';
+          // Prefer lat/lon from the in-memory record, fall back to feature props
+          const lat = (rec && (rec.lat !== undefined)) ? rec.lat : (feature?.properties?.lat ?? 'N/A');
+          const lon = (rec && (rec.lon !== undefined)) ? rec.lon : (feature?.properties?.lon ?? 'N/A');
 
           const fmt = v =>
             (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(4) : v;
@@ -935,6 +944,8 @@ fetch('data/points.json')
               <div><strong>ID:</strong> ${fid}</div>
               <div><strong>x:</strong> ${fmt(x)}</div>
               <div><strong>y:</strong> ${fmt(y)}</div>
+              <div><strong>lat:</strong> ${fmt(lat)}</div>
+              <div><strong>lon:</strong> ${fmt(lon)}</div>
             </div>`;
         }
 
@@ -1011,10 +1022,12 @@ fetch('data/points.json')
         scatterDiv.on('plotly_click', (evt) => {
           const pt = evt.points?.[0];
           if (!pt) return;
-          const clickedId = Array.isArray(pt.customdata) ? pt.customdata[0] : pt.customdata;
+          const rawId = Array.isArray(pt.customdata) ? pt.customdata[0] : pt.customdata;
+          const clickedId = rawId == null ? null : String(rawId);
 
           highlightIdsOnMap(new Set([clickedId]));  /*use filter-based highlight*/
-          selectById(clickedId, { fly: false });     /* thumbnails + flyTo*/
+          /* select and fly to the matching record on the map */
+          selectById(clickedId, { fly: true });     /* thumbnails + flyTo*/
         });
 
         /* multi-select (map only; skip Plotly restyle to avoid thrash)*/
