@@ -369,8 +369,8 @@ fetch(points)
     }
 
     const styles = {
-      globe:    'mapbox://styles/clarkcga-yayao/cmg1jqrhw004r01qt3rkd6pkn',
-      mercator: 'mapbox://styles/clarkcga-yayao/cmg5akc69008g01qq4whw6e1f'
+      globe:    'mapbox://styles/clarkcga/cmippxwrj00cm01s7a7zx9sq3',
+      mercator: 'mapbox://styles/clarkcga/cmippf1iz00ck01s7cgt3fe1u'
     };
     const presets = {
       globe:    { projection: 'globe',    center: [31, 30], zoom: 2   },
