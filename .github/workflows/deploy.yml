@@ -41,7 +41,7 @@ jobs:
       # Create env.js from repo secret
       - name: Write env.js from secret
         run: |
-          echo "window.MAPBOX_APIKey = '${{ secrets.MAPBOX_APIKEY }}';" > dist/env.js
+          echo "window.MAPBOX_APIKey = '${{ secrets.MAPBOX_APIKEY }}'" > dist/env.js
       
       - name: Add .nojekyll
         run: touch dist/.nojekyll
