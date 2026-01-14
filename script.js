@@ -40,36 +40,12 @@ fetch(points)
     const getThumbKey = (s) => `${s}_thumbs`;
     const getDatesKey = (s) => `${s}_dates`;
 
-    /* caches will be initialized after swapping lat/lon if needed */
-    let idToRec;
-    let chipIdToRec;
-
-    /*
-     * Read lat/lon from `points` into numeric memory fields where
-     * `_lon` := Number(p.lat) and `_lat` := Number(p.lon).
-     * This is a temp function for source fields are swapped.
-     */
-    function readSwappedLatLon() {
-      points.forEach(p => {
-        const rawLon = p.lon;
-        const rawLat = p.lat;
-        // store swapped numeric copies: lat->lon, lon->lat
-        p._lon = (rawLat === undefined || rawLat === null) ? NaN : Number(rawLat);
-        p._lat = (rawLon === undefined || rawLon === null) ? NaN : Number(rawLon);
-        if (!Number.isFinite(p._lon) || !Number.isFinite(p._lat)) {
-          console.warn('readSwappedLatLon: record has non-finite coordinates', p.id, { rawLon, rawLat, _lon: p._lon, _lat: p._lat });
-        }
-      });
-
-      idToRec = new Map(points.map(p => [String(p.id), p]));
-      chipIdToRec = new Map(points
-        .filter(p => p.chip_id != null && String(p.chip_id) !== '')
-        .map(p => [String(p.chip_id), p])
-      );
-    }
-
-    // read swapped coords into memory
-    readSwappedLatLon();
+    /* add caches */
+    const idToRec = new Map(points.map(p => [String(p.id), p]));
+    const chipIdToRec = new Map(points
+      .filter(p => p.chip_id != null && String(p.chip_id) !== '')
+      .map(p => [String(p.chip_id), p])
+    );
 
     function getRecordByAnyId(anyId) {
       const s = String(anyId ?? '');
@@ -437,13 +413,10 @@ fetch(points)
           xs.push(x);
           ys.push(y);
           ids.push(p.id);
-          // prefer numeric normalized coords attached at load time
-          const latVal = (p._lat ?? Number(p.lat));
-          const lonVal = (p._lon ?? Number(p.lon));
-          lats.push(latVal);
-          lons.push(lonVal);
+          lats.push(p.lat);
+          lons.push(p.lon);
           colors.push(p.color);
-          custom.push([p.id, latVal, lonVal]);
+          custom.push([p.id, p.lat, p.lon]);
           idToPlotIndex.set(p.id, { traceIdx, pointIdx: i });
         });
 
@@ -509,18 +482,12 @@ fetch(points)
       const sel = points.filter(p => idsSet.has(p.id));
       /*if one point selected, do flyTo let and lon*/
       if (sel.length === 1) {
-        const lon = (sel[0]._lon ?? Number(sel[0].lon));
-        const lat = (sel[0]._lat ?? Number(sel[0].lat));
-        map.flyTo({ center: [lon, lat], zoom: Math.max(map.getZoom(), 12), speed: 1 });
+        map.flyTo({ center: [sel[0].lon, sel[0].lat], zoom: Math.max(map.getZoom(), 12), speed: 1 });
         return;
       }
       /*if multi point selected, build a bounding box encloses them and fitBound map*/
       const b = new mapboxgl.LngLatBounds();
-      sel.forEach(p => {
-        const lon = (p._lon ?? Number(p.lon));
-        const lat = (p._lat ?? Number(p.lat));
-        if (Number.isFinite(lon) && Number.isFinite(lat)) b.extend([lon, lat]);
-      });
+      sel.forEach(p => b.extend([p.lon, p.lat]));
       const totalRightPad = getSideWidthPx() + getLegendWidthPx() + 10; // +10 safety margin
       map.fitBounds(b, { 
         padding: { 
@@ -688,9 +655,7 @@ fetch(points)
 
       const currentZoom = map.getZoom();
       const targetZoom = currentZoom < 12 ? 12 : currentZoom;
-      const lon = (rec._lon ?? Number(rec.lon));
-      const lat = (rec._lat ?? Number(rec.lat));
-      map.flyTo({ center: [lon, lat], zoom: targetZoom, speed: 1 });
+      map.flyTo({ center: [rec.lon, rec.lat], zoom: targetZoom, speed: 1 });
     }
 
     function selectById(id, { fly = false } = {}) {
@@ -846,7 +811,7 @@ fetch(points)
         const ids = new Set();
         /* fast path: check every point; add bbox short-circuit if needed later*/
         for (const p of points) {
-          const pt = [p._lon ?? Number(p.lon), p._lat ?? Number(p.lat)]; /* turf accepts [lng, lat]*/
+          const pt = [p.lon, p.lat]; /* turf accepts [lng, lat]*/
           for (const poly of polys) {
             if (turf.booleanPointInPolygon(pt, poly)) { ids.add(p.id); break; }
           }
@@ -962,9 +927,9 @@ fetch(points)
           const xy  = rec ? getXYForModel(rec, currentModel) : null;
           const x   = xy?.x ?? feature?.properties?.x ?? 'N/A';
           const y   = xy?.y ?? feature?.properties?.y ?? 'N/A';
-          // Prefer normalized lat/lon from the in-memory record, fall back to feature props
-          const lat = (rec && Number.isFinite(rec._lat)) ? rec._lat : ((rec && Number.isFinite(rec.lat)) ? rec.lat : (feature?.properties?.lat ?? 'N/A'));
-          const lon = (rec && Number.isFinite(rec._lon)) ? rec._lon : ((rec && Number.isFinite(rec.lon)) ? rec.lon : (feature?.properties?.lon ?? 'N/A'));
+          // Prefer lat/lon from the in-memory record, fall back to feature props
+          const lat = (rec && (rec.lat !== undefined)) ? rec.lat : (feature?.properties?.lat ?? 'N/A');
+          const lon = (rec && (rec.lon !== undefined)) ? rec.lon : (feature?.properties?.lon ?? 'N/A');
 
           const fmt = v =>
             (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(4) : v;
