@@ -4,11 +4,55 @@ const yaxis_js  = "t‑SNE Dimension 2";
 const today = new Date();
 const year  = today.getFullYear();
 
-const points = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
+/* base data URL (contains category, color, id, lat, lon, thumbnails, dates) */
+const BASE_DATA_URL = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
 
-fetch(points)
-  .then(res => res.json())
-  .then(points => {
+/* model fields */
+const MODEL_FIELDS = {
+  'prithvieov2300m_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_allpatchesfromapriltojune.json', title: 'Prithvi-EO-2.0-300m: All Patches from April to June' },
+  'prithvieov2300m_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_allstepsofmiddlepatch.json',     title: 'Prithvi-EO-2.0-300m: All Steps of Middle Patch' },
+  'prithvieov2300m_clstoken':                  { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_clstoken.json',                  title: 'Prithvi-EO-2.0-300m: Clstoken' },
+  'prithvieov2600m_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_allpatchesfromapriltojune.json', title: 'Prithvi-EO-2.0-600m: All Patches from April to June' },
+  'prithvieov2600m_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_allstepsofmiddlepatch.json',     title: 'Prithvi-EO-2.0-600m: All Steps of Middle Patch' },
+  'prithvieov2600m_clstoken':                  { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_clstoken.json',                  title: 'Prithvi-EO-2.0-600m: Clstoken' },
+  'terramindv1base_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/terramindv1base_allpatchesfromapriltojune.json', title: 'Terramindv1base: All Patches from April to June' },
+  'terramindv1base_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/terramindv1base_allstepsofmiddlepatch.json',     title: 'Terramindv1base: All Steps of Middle Patch' },
+};
+
+const DEFAULT_MODEL = 'prithvieov2300m_allpatchesfromapriltojune';
+
+/* cache for loaded model data: modelName -> Map(id -> {x, y}) */
+const modelDataCache = new Map();
+
+/* fetch and cache model JSON on-demand */
+async function loadModelData(modelName) {
+  // If model was loaded before, return the cached data 
+  if (modelDataCache.has(modelName)) {
+    return modelDataCache.get(modelName);
+  }
+  // fall back to the default model if the name isn't found
+  const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS[DEFAULT_MODEL];
+  // fetch the JSON file from the path
+  const res = await fetch(fields.path);
+  // parse the JSON file
+  const arr = await res.json();
+  /* build a Map from id -> {x, y} for fast lookup */
+  const idToXY = new Map(arr.map(d => [d.id, { x: d.x, y: d.y }]));
+  // store the Map in the cache for future use
+  modelDataCache.set(modelName, idToXY);
+  return idToXY;
+}
+
+/* fetch base data + default model, then initialize */
+Promise.all([
+  fetch(BASE_DATA_URL).then(r => r.json()),
+  loadModelData(DEFAULT_MODEL)
+])
+  .then(([baseData, defaultModelXY]) => {
+    /* baseData = array of {category, color, id, lat, lon, ...thumbs/dates} */
+    /* defaultModelXY = Map(id -> {x, y}) */
+    const points = baseData;
+
     mapboxgl.accessToken = window.MAPBOX_APIKey;
 
     /* define variable across rebuilds*/
@@ -16,25 +60,16 @@ fetch(points)
     let selectedId = null;   /* current selected id*/
     let selectedIds = new Set();   /* current multi-selected ids*/
     let currentMode = 'globe';
-    let currentModel = 'prithvi-eo-2.0';
+    let currentModel = DEFAULT_MODEL;
     let currentThumbDataset = 'sentinel_2';
 
-    /* map each model name to the x/y property keys in points.json*/
-    const MODEL_FIELDS = {
-      'prithvieov2300m_allpatchesfromapriltojune': { x: 'prithvieov2300m_allpatchesfromapriltojune_tsne_x', y: 'prithvieov2300m_allpatchesfromapriltojune_tsne_y', title: 'Prithvi-EO-2.0-300m: All Patches from April to June' },
-      'prithvieov2300m_allstepsofmiddlepatch':        { x: 'prithvieov2300m_allstepsofmiddlepatch_tsne_x',  y: 'prithvieov2300m_allstepsofmiddlepatch_tsne_y',  title: 'Prithvi-EO-2.0-300m: All Steps of Middle Patch' },
-      'prithvieov2300m_clstoken':        { x: 'prithvieov2300m_clstoken_tsne_x',  y: 'prithvieov2300m_clstoken_tsne_y',  title: 'Prithvi-EO-2.0-300m: Clstoken' },
-      'prithvieov2600m_allpatchesfromapriltojune': { x: 'prithvieov2600m_allpatchesfromapriltojune_tsne_x', y: 'prithvieov2600m_allpatchesfromapriltojune_tsne_y', title: 'Prithvi-EO-2.0-600m: All Patches from April to June' },
-      'prithvieov2600m_allstepsofmiddlepatch':        { x: 'prithvieov2600m_allstepsofmiddlepatch_tsne_x',  y: 'prithvieov2600m_allstepsofmiddlepatch_tsne_y',  title: 'Prithvi-EO-2.0-600m: All Steps of Middle Patch' },
-      'prithvieov2600m_clstoken':        { x: 'prithvieov2600m_clstoken_tsne_x',  y: 'prithvieov2600m_clstoken_tsne_y',  title: 'Prithvi-EO-2.0-600m: Clstoken' },
-      'terramindv1base_allpatchesfromapriltojune': { x: 'terramindv1base_allpatchesfromapriltojune_tsne_x', y: 'terramindv1base_allpatchesfromapriltojune_tsne_y', title: 'Terramindv1base: All Patches from April to June' },
-      'terramindv1base_allstepsofmiddlepatch':        { x: 'terramindv1base_allstepsofmiddlepatch_tsne_x',  y: 'terramindv1base_allstepsofmiddlepatch_tsne_y',  title: 'Terramindv1base: All Steps of Middle Patch' },
-    };
+    /* current model's xy data (Map: id -> {x, y}) */
+    let currentModelXY = defaultModelXY;
 
     function getXYForModel(p, modelName) {
-      const f = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvieov2300m_allpatchesfromapriltojune'];
-      // bracket access handles JSON keys
-      return { x: p?.[f.x], y: p?.[f.y] };
+      /* look up x/y from the loaded model data by point id */
+      const xy = currentModelXY.get(p.id);
+      return xy || { x: undefined, y: undefined };
     }
 
     const getThumbKey = (s) => `${s}_thumbs`;
@@ -70,13 +105,22 @@ fetch(points)
     initModelsLabel();
 
     /* update on click */
-    modelMenu.addEventListener('click', (e) => {
+    modelMenu.addEventListener('click', async (e) => {
       const link = e.target.closest('a[gfm]');
       if (!link) return;
       e.preventDefault();
 
-      currentModel = link.getAttribute('gfm');
+      const newModel = link.getAttribute('gfm');
       setModelsButtonLabel(link.textContent.trim());
+
+      /* load model data on-demand */
+      try {
+        currentModelXY = await loadModelData(newModel);
+        currentModel = newModel;
+      } catch (err) {
+        console.error('Failed to load model data:', err);
+        return;
+      }
 
       /* rebuild traces/layout for the newly chosen model*/
       const { traces, layout } = buildScatterForModel(points, currentModel);
@@ -396,6 +440,12 @@ fetch(points)
       const cats = Array.from(new Set(points.map(p => p.category)));
       idToPlotIndex = new Map();
 
+      /* helper to get x/y from currentModelXY */
+      const getXY = (p) => {
+        const xy = currentModelXY.get(p.id);
+        return xy || { x: undefined, y: undefined };
+      };
+
       /* traces*/
       const traces = cats.map((cat, traceIdx) => {
         const pts = points.filter(p => p.category === cat);
@@ -409,14 +459,14 @@ fetch(points)
         const custom = [];
 
         pts.forEach((p, i) => {
-          const { x, y } = getXYForModel(p, modelName);
+          const { x, y } = getXY(p);
           xs.push(x);
           ys.push(y);
           ids.push(p.id);
           lats.push(p.lat);
           lons.push(p.lon);
           colors.push(p.color);
-          custom.push([p.id, p.lat, p.lon]);
+          custom.push([p.id, p.lat, p.lon]); // stored for popup
           idToPlotIndex.set(p.id, { traceIdx, pointIdx: i });
         });
 
@@ -439,8 +489,8 @@ fetch(points)
 
       /* ranges per model (compute axis xmax and ymax)*/
       const extension_f = 0.1;
-      const xsAll = points.map(p => getXYForModel(p, modelName).x).filter(Number.isFinite);
-      const ysAll = points.map(p => getXYForModel(p, modelName).y).filter(Number.isFinite);
+      const xsAll = points.map(p => getXY(p).x).filter(Number.isFinite);
+      const ysAll = points.map(p => getXY(p).y).filter(Number.isFinite);
       const minOr = (arr, d) => arr.length ? Math.min(...arr) : d;
       const maxOr = (arr, d) => arr.length ? Math.max(...arr) : d;
 
@@ -449,7 +499,7 @@ fetch(points)
       const yMin = minOr(ysAll, 0) * (1 + extension_f);
       const yMax = maxOr(ysAll, 1) * (1 + extension_f);
 
-      const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS['prithvieov2300m_allpatchesfromapriltojune'];
+      const fields = MODEL_FIELDS[modelName] || MODEL_FIELDS[DEFAULT_MODEL];
       const layout = {
         hovermode: 'closest',
         title: { text: `${fields.title}`, y: 0.98, pad: { t: 24 } },
@@ -924,12 +974,12 @@ fetch(points)
 
           // in-memory record (for pop-up x/y and lat/lon)
           const rec = getRecordByAnyId(fid);
-          const xy  = rec ? getXYForModel(rec, currentModel) : null;
-          const x   = xy?.x ?? feature?.properties?.x ?? 'N/A';
-          const y   = xy?.y ?? feature?.properties?.y ?? 'N/A';
-          // Prefer lat/lon from the in-memory record, fall back to feature props
-          const lat = (rec && (rec.lat !== undefined)) ? rec.lat : (feature?.properties?.lat ?? 'N/A');
-          const lon = (rec && (rec.lon !== undefined)) ? rec.lon : (feature?.properties?.lon ?? 'N/A');
+          const xy  = rec ? currentModelXY.get(rec.id) : null;
+          const x   = xy?.x ?? 'N/A';
+          const y   = xy?.y ?? 'N/A';
+          // lat/lon from the in-memory record
+          const lat = rec?.lat ?? 'N/A';
+          const lon = rec?.lon ?? 'N/A';
 
           const fmt = v =>
             (typeof v === 'number' && Number.isFinite(v)) ? v.toFixed(4) : v;
