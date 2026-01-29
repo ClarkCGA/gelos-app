@@ -1248,26 +1248,25 @@ Promise.all([
           if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0);
           if (hasCentroids) map.setPaintProperty('centroids-circle', 'circle-opacity', 0);
         } else {
-          /*show layers, and filter by category codes.
+          /*show layers, and filter by category labels.
             pmtiles use filter to show matching features.*/
           try {
-            /* build an array of codes as strings for the filter expression*/
-            const literalCodes = ['literal', codes.map(String)];
+            /* build an array of labels as strings for the filter expression*/
+            const literalLabels = ['literal', labels.map(String)];
 
             /* landcover-fill & landcover-outline: use filter on 'category' property*/
             if (hasFill) {
-              map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'category']], literalCodes]);
+              map.setFilter('landcover-fill', ['in', ['to-string', ['get', 'category']], literalLabels]);
               /* restore opacity */
               map.setPaintProperty('landcover-fill', 'fill-opacity', 0.9);
             }
             if (hasOutline) {
-              map.setFilter('landcover-outline', ['in', ['to-string', ['get', 'category']], literalCodes]);
+              map.setFilter('landcover-outline', ['in', ['to-string', ['get', 'category']], literalLabels]);
               map.setPaintProperty('landcover-outline', 'line-opacity', 0.8);
             }
 
             /* centroids*/
             if (hasCentroids) {
-            const literalLabels = ['literal', labels.map(String)];
             map.setFilter('centroids-circle', ['in', ['get', 'category'], literalLabels]);
             map.setPaintProperty('centroids-circle', 'circle-opacity', 0.9);
           }
