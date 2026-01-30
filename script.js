@@ -385,7 +385,7 @@ Promise.all([
     let spinEnabled = true;           /* enabled only in globe*/
 
     function spinGlobe() {
-      if (!map || !spinEnabled || currentMode !== 'globe') return;
+      if (!map || !spinEnabled || (currentMode !== 'globe' && currentMode !== 'satellite')) return;
       const zoom = map.getZoom();
       if (zoom >= maxSpinZoom || userInteracting) return;
 
@@ -422,11 +422,13 @@ Promise.all([
 
     const styles = {
       globe:    'mapbox://styles/clarkcga/cmippxwrj00cm01s7a7zx9sq3',
-      mercator: 'mapbox://styles/clarkcga/cmippf1iz00ck01s7cgt3fe1u'
+      mercator: 'mapbox://styles/clarkcga/cmippf1iz00ck01s7cgt3fe1u',
+      satellite: 'mapbox://styles/clarkcga/cml13h7oc00gi01qr5ubrh949',
     };
     const presets = {
       globe:    { projection: 'globe',    center: [31, 30], zoom: 2   },
-      mercator: { projection: 'mercator', center: [28, 20], zoom: 1.7 }
+      mercator: { projection: 'mercator', center: [28, 20], zoom: 1.7 },
+      satellite:    { projection: 'globe',    center: [31, 30], zoom: 2   },
     };
 
     /* build plotly traces and an id → index for quick selection*/
@@ -1323,7 +1325,7 @@ Promise.all([
       /* total right padding = panel width + legend width*/
       const rightPad = getSideWidthPx() + getLegendWidthPx();
 
-      if (mode === 'globe') {
+      if (mode === 'globe' || mode === 'satellite') {
         const rightPad = getSideWidthPx();
         /* set padding so the globe appears centered left*/
         map.setPadding({ top: 0, right: rightPad, bottom: 0, left: 0 });
@@ -1339,8 +1341,8 @@ Promise.all([
       if (map) { try { map.remove(); } catch {} map = null; }
 
       currentMode = mode;
-      /* spin only for globe */
-      spinEnabled = (mode === 'globe');
+      /* spin only for globe and satellite */
+      spinEnabled = (mode === 'globe' || mode === 'satellite');
 
       map = new mapboxgl.Map({
         container: 'map-plot',
@@ -1388,7 +1390,7 @@ Promise.all([
         .forEach(b => b.classList.toggle('active', b === btnEl));
       
 
-      spinEnabled = (mode === 'globe');
+      spinEnabled = (mode === 'globe' || mode === 'satellite');
       /* rebuild the chosen mode*/
       buildMap(mode);
 
