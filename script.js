@@ -338,8 +338,12 @@ Promise.all([
       ];
       
       /* control fill opacity per feature */
-      const SELECTED_FILL_OPACITY = 1.0;
-      const UNSELECTED_FILL_OPACITY = 0.20; 
+      const SELECTED_FILL_OPACITY = currentMode === 'satellite' ? 0.20 : 1.0;
+      const UNSELECTED_FILL_OPACITY = 0.20;
+
+      /* control centroid opacity per feature */
+      const SELECTED_CENTROID_OPACITY = currentMode === 'satellite' ? 0.01 : 1.0;
+      const UNSELECTED_CENTROID_OPACITY = 0.01;
 
       /* make expression that normalizes whichever id property exists on the polygon */
       const idExpr = ['to-string',
@@ -357,8 +361,8 @@ Promise.all([
 
       const centroidOpacityExpr = [
         'case',
-          ['in', idExpr, ['literal', arr]], 1, 
-          0.01
+          ['in', idExpr, ['literal', arr]], SELECTED_CENTROID_OPACITY, 
+          UNSELECTED_CENTROID_OPACITY
       ];
 
       /* Apply expressions */
