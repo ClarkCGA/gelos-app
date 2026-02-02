@@ -122,20 +122,34 @@ Promise.all([
         return;
       }
 
+      /* preserve selection state before rebuild */
+      const prevSelectedId = selectedId;
+      const prevHighlightedIds = new Set(_currentHighlightedIds);
+
       /* rebuild traces/layout for the newly chosen model*/
       const { traces, layout } = buildScatterForModel(points, currentModel);
       scatterTraces = traces;
       scatterLayout = layout;
 
       /* keep any highlight/selection visuals consistent after react*/
-      const prevIds = new Set(_currentHighlightedIds);
       Plotly.react('scatter-plot', scatterTraces, scatterLayout, { responsive: true }).then(() => {
         // re-apply selection dimming & per-trace selectedpoints
-        if (prevIds.size > 0) {
-          applySelectionToPlot(prevIds);
+        if (prevHighlightedIds.size > 0) {
+          applySelectionToPlot(prevHighlightedIds);
           Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+          // re-apply map highlight
+          highlightIdsOnMap(prevHighlightedIds);
         } else {
           clearPlotSelections();
+        }
+
+        // restore single selection (thumbnails) if there was one
+        if (prevSelectedId != null) {
+          const rec = points.find(p => p.id === prevSelectedId || String(p.id) === String(prevSelectedId));
+          if (rec) {
+            selectedId = rec.id;
+            renderThumbnails(rec);
+          }
         }
       });
     });
@@ -244,7 +258,12 @@ Promise.all([
       /*build per-trace selection arrays*/
       const perTrace = Array.from({ length: scatterTraces.length }, () => []);
       idsSet.forEach(id => {
-        const loc = idToPlotIndex.get(id);
+        /* idToPlotIndex is keyed by number, but idsSet contains strings */
+        let loc = idToPlotIndex.get(id);
+        if (!loc && typeof id === 'string') {
+          const numId = Number(id);
+          if (!isNaN(numId)) loc = idToPlotIndex.get(numId);
+        }
         if (loc) perTrace[loc.traceIdx].push(loc.pointIdx);
       });
       /*apply across all traces*/
