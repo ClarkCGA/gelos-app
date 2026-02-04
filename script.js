@@ -1361,18 +1361,36 @@ Promise.all([
 
     /* build or rebuild the map throught mode*/
     function buildMap(mode) {
+      /* preserve selection state before rebuild */
+      //selected single point  
+      const prevSelectedId = selectedId;
+      //selected multiple points
+      const prevHighlightedIds = new Set(_currentHighlightedIds);
+      const prevZoom = map ? map.getZoom() : null;
+
+      /* find the selected record for center/zoom */
+      let selectedRec = null;
+      if (prevSelectedId != null) {
+        selectedRec = points.find(p => p.id === prevSelectedId || String(p.id) === String(prevSelectedId));
+      }
+
       if (map) { try { map.remove(); } catch {} map = null; }
 
       currentMode = mode;
       /* spin only for globe and satellite */
       spinEnabled = (mode === 'globe' || mode === 'satellite');
 
+      /* determine center and zoom: use selected point if available, else use presets */
+      const hasSelection = selectedRec != null || prevHighlightedIds.size > 0;
+      const mapCenter = selectedRec ? [selectedRec.lon, selectedRec.lat] : presets[mode].center;
+      const mapZoom = hasSelection ? Math.max(prevZoom) : presets[mode].zoom;
+
       map = new mapboxgl.Map({
         container: 'map-plot',
         style: styles[mode],
         projection: presets[mode].projection,
-        center: presets[mode].center,
-        zoom: presets[mode].zoom,
+        center: mapCenter,
+        zoom: mapZoom,
         attributionControl: false,  // turn off the default attribution
       });
 
@@ -1403,7 +1421,28 @@ Promise.all([
       window.addEventListener('resize', onResize);
 
       /*re-apply once style is loaded */
-      map.once('load', () => applyPaddingForMode(mode));
+      map.once('load', () => {
+        applyPaddingForMode(mode);
+
+        /* restore selection after map loads */
+        if (hasSelection) {
+          /* small delay to ensure layers are ready */
+          setTimeout(() => {
+            // re-apply highlight to map and plot
+            if (prevHighlightedIds.size > 0) {
+              highlightIdsOnMap(prevHighlightedIds);
+              applySelectionToPlot(prevHighlightedIds);
+              Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+            }
+
+            // restore single selection (thumbnails)
+            if (selectedRec) {
+              selectedId = selectedRec.id;
+              renderThumbnails(selectedRec);
+            }
+          }, 100);
+        }
+      });
     }
 
     /* global buttons function for inline onclicks*/
@@ -1411,7 +1450,6 @@ Promise.all([
       /*active*/ 
       document.querySelectorAll('.globe-map button')
         .forEach(b => b.classList.toggle('active', b === btnEl));
-      
 
       spinEnabled = (mode === 'globe' || mode === 'satellite');
       /* rebuild the chosen mode*/
