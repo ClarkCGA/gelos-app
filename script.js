@@ -150,6 +150,9 @@ Promise.all([
         return;
       }
 
+      /* close the dropdown */
+      modelMenu.classList.remove('show');
+
       /* preserve selection state before rebuild */
       const prevSelectedId = selectedId;
       const prevHighlightedIds = new Set(_currentHighlightedIds);
@@ -211,6 +214,8 @@ Promise.all([
       currentThumbDataset = datasetKey;                         /* keep the state in sync*/
       setImagesButtonLabel(label);                              /* update button label*/
 
+      /* close the dropdown */
+      imageMenu.classList.remove('show');
 
       /* refresh thumbnails if a point is selected */
       if (selectedId != null) {
@@ -256,23 +261,6 @@ Promise.all([
       map.on('moveend', once);
     }
     
-    /*choose image*/
-    function wireImageMenu() {
-      const menu = document.getElementById('image-menu');
-      if (!menu) return;
-      menu.querySelectorAll('a[thumb-dataset]').forEach(a => {
-        a.addEventListener('click', (e) => {
-          e.preventDefault();
-          currentThumbDataset = a.getAttribute('thumb-dataset');          
-          if (selectedId != null) {                   /* switch if a point is selected, refresh thumbnails*/
-            const rec = points.find(p => p.id === selectedId);
-            if (rec) renderThumbnails(rec);
-          }
-          menu.classList.remove('show');              /*close the dropdown*/
-        });
-      });
-    }
-    wireImageMenu();
 
     function applySelectionToMap(newIdsSet) {
       highlightIdsOnMap(newIdsSet || new Set());
