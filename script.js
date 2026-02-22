@@ -150,6 +150,9 @@ Promise.all([
         return;
       }
 
+      /* close the dropdown */
+      modelMenu.classList.remove('show');
+
       /* preserve selection state before rebuild */
       const prevSelectedId = selectedId;
       const prevHighlightedIds = new Set(_currentHighlightedIds);
