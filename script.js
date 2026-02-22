@@ -9,17 +9,45 @@ const BASE_DATA_URL = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
 
 /* model fields */
 const MODEL_FIELDS = {
-  'prithvieov2300m_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_allpatchesfromapriltojune.json', title: 'Prithvi-EO-2.0-300m: All Patches from April to June' },
-  'prithvieov2300m_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_allstepsofmiddlepatch.json',     title: 'Prithvi-EO-2.0-300m: All Steps of Middle Patch' },
-  'prithvieov2300m_clstoken':                  { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2300m_clstoken.json',                  title: 'Prithvi-EO-2.0-300m: Clstoken' },
-  'prithvieov2600m_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_allpatchesfromapriltojune.json', title: 'Prithvi-EO-2.0-600m: All Patches from April to June' },
-  'prithvieov2600m_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_allstepsofmiddlepatch.json',     title: 'Prithvi-EO-2.0-600m: All Steps of Middle Patch' },
-  'prithvieov2600m_clstoken':                  { path: 'https://gelos-fm.s3.amazonaws.com/json/prithvieov2600m_clstoken.json',                  title: 'Prithvi-EO-2.0-600m: Clstoken' },
-  'terramindv1base_allpatchesfromapriltojune': { path: 'https://gelos-fm.s3.amazonaws.com/json/terramindv1base_allpatchesfromapriltojune.json', title: 'Terramindv1base: All Patches from April to June' },
-  'terramindv1base_allstepsofmiddlepatch':     { path: 'https://gelos-fm.s3.amazonaws.com/json/terramindv1base_allstepsofmiddlepatch.json',     title: 'Terramindv1base: All Steps of Middle Patch' },
-};
+  "exp001_prithvi300_cls_token": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_patches_from_april_to_june_layer_23_tsne.json",
+    title: "Prithvi EO V2 300M: CLS Token"
+  },
+  "exp001_prithvi300_all_steps_of_middle_patch": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_steps_of_middle_patch_layer_23_tsne.json",
+    title: "Prithvi EO V2 300M: All Steps of Middle Patch"
+  },
+  "exp001_prithvi300_all_patches_from_april_to_june": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_cls_token_layer_23_tsne.json",
+    title: "Prithvi EO V2 300M: All Patches from April to June"
+  },
+  "exp004_prithvi600_cls_token": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_patches_from_april_to_june_layer_31_tsne.json",
+    title: "Prithvi EO V2 600M: CLS Token"
+  },
+  "exp004_prithvi600_all_steps_of_middle_patch": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_steps_of_middle_patch_layer_31_tsne.json",
+    title: "Prithvi EO V2 600M: All Steps of Middle Patch"
+  },
+  "exp004_prithvi600_all_patches_from_april_to_june": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_cls_token_layer_31_tsne.json",
+    title: "Prithvi EO V2 600M: All Patches from April to June"
+  },
+  "exp007_terramind_all_steps_of_middle_patch": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_embeddings_layer_11_tsne.json",
+    title: "Terramind V1 Base: All Steps of Middle Patch"
+  },
+  "exp007_terramind_all_patches_from_april_to_june": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_patches_from_april_to_june_layer_11_tsne.json",
+    title: "Terramind V1 Base: All Patches from April to June"
+  },
+  "exp007_terramind_all_embeddings": {
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_steps_of_middle_patch_layer_11_tsne.json",
+    title: "Terramind V1 Base: All Embeddings"
+  }
+}
 
-const DEFAULT_MODEL = 'prithvieov2300m_allpatchesfromapriltojune';
+const DEFAULT_MODEL = 'exp001_prithvi300_cls_token';
 
 /* cache for loaded model data: modelName -> Map(id -> {x, y}) */
 const modelDataCache = new Map();
@@ -100,7 +128,7 @@ Promise.all([
     if (modelMenu) {
     function initModelsLabel() {
       const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
-      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi-EO-2.0-300m: All Patches from April to June');
+      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi EO V2 300M: CLS Token');
     }
     initModelsLabel();
 
