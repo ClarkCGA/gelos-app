@@ -10,39 +10,39 @@ const BASE_DATA_URL = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
 /* model fields */
 const MODEL_FIELDS = {
   "exp001_prithvi300_cls_token": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_cls_token.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_patches_from_april_to_june_layer_23_tsne.json",
     title: "Prithvi EO V2 300M: CLS Token"
   },
   "exp001_prithvi300_all_steps_of_middle_patch": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_steps_of_middle_patch.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_steps_of_middle_patch_layer_23_tsne.json",
     title: "Prithvi EO V2 300M: All Steps of Middle Patch"
   },
   "exp001_prithvi300_all_patches_from_april_to_june": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_patches_from_april_to_june.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_cls_token_layer_23_tsne.json",
     title: "Prithvi EO V2 300M: All Patches from April to June"
   },
   "exp004_prithvi600_cls_token": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_cls_token.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_patches_from_april_to_june_layer_31_tsne.json",
     title: "Prithvi EO V2 600M: CLS Token"
   },
   "exp004_prithvi600_all_steps_of_middle_patch": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_steps_of_middle_patch.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_steps_of_middle_patch_layer_31_tsne.json",
     title: "Prithvi EO V2 600M: All Steps of Middle Patch"
   },
   "exp004_prithvi600_all_patches_from_april_to_june": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_patches_from_april_to_june.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_cls_token_layer_31_tsne.json",
     title: "Prithvi EO V2 600M: All Patches from April to June"
   },
   "exp007_terramind_all_steps_of_middle_patch": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_steps_of_middle_patch.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_embeddings_layer_11_tsne.json",
     title: "Terramind V1 Base: All Steps of Middle Patch"
   },
   "exp007_terramind_all_patches_from_april_to_june": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_patches_from_april_to_june.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_patches_from_april_to_june_layer_11_tsne.json",
     title: "Terramind V1 Base: All Patches from April to June"
   },
   "exp007_terramind_all_embeddings": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_embeddings.json",
+    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_steps_of_middle_patch_layer_11_tsne.json",
     title: "Terramind V1 Base: All Embeddings"
   }
 }
