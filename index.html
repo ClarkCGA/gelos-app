@@ -115,7 +115,12 @@
     </div>
       
     <div id="right-container">
-      <div id="scatter-plot"></div>
+      <div id="scatter-wrapper" style="position:relative;">
+        <div id="scatter-plot"></div>
+        <div id="scatter-loading" class="scatter-loading-overlay" style="display:none;">
+          <span>Loading data…</span>
+        </div>
+      </div>
       <div id="image-container"></div>
     </div>
   </div>

@@ -141,12 +141,17 @@ Promise.all([
       const newModel = link.getAttribute('gfm');
       setModelsButtonLabel(link.textContent.trim());
 
+      /* show loading overlay */
+      const loadingM = document.getElementById('scatter-loading');
+      if (loadingM) loadingM.style.display = 'flex';
+
       /* load model data on-demand */
       try {
         currentModelXY = await loadModelData(newModel);
         currentModel = newModel;
       } catch (err) {
         console.error('Failed to load model data:', err);
+        if (loadingM) loadingM.style.display = 'none';
         return;
       }
 
@@ -164,6 +169,9 @@ Promise.all([
 
       /* keep any highlight/selection visuals consistent after react*/
       Plotly.react('scatter-plot', scatterTraces, scatterLayout, { responsive: true }).then(() => {
+        /* hide loading overlay after plot finishes rendering */
+        if (loadingM) loadingM.style.display = 'none';
+
         // re-apply selection dimming & per-trace selectedpoints
         if (prevHighlightedIds.size > 0) {
           applySelectionToPlot(prevHighlightedIds);
@@ -182,6 +190,10 @@ Promise.all([
             renderThumbnails(rec);
           }
         }
+      }).catch((err) => {
+        /* hide loading overlay even if Plotly.react fails */
+        if (loadingM) loadingM.style.display = 'none';
+        console.error('Plotly.react failed:', err);
       });
     });
     }
