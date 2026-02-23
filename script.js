@@ -90,6 +90,8 @@ Promise.all([
     let currentMode = 'globe';
     let currentModel = DEFAULT_MODEL;
     let currentThumbDataset = 'sentinel_2';
+    let currentLegendFilterCodes = [];
+    let currentLegendFilterLabels = [];
 
     /* current model's xy data (Map: id -> {x, y}) */
     let currentModelXY = defaultModelXY;
@@ -171,6 +173,9 @@ Promise.all([
       Plotly.react('scatter-plot', scatterTraces, scatterLayout, { responsive: true }).then(() => {
         /* hide loading overlay after plot finishes rendering */
         if (loadingM) loadingM.style.display = 'none';
+
+        /* re-apply current legend filter to rebuilt traces/layers */
+        applyLegendFilter(currentLegendFilterCodes, currentLegendFilterLabels);
 
         // re-apply selection dimming & per-trace selectedpoints
         if (prevHighlightedIds.size > 0) {
@@ -1214,6 +1219,8 @@ Promise.all([
             selectedCodes.add(cb.dataset.code);
           }
         });
+        currentLegendFilterCodes = Array.from(selectedCodes);
+        currentLegendFilterLabels = Array.from(selectedLabels);
         /* update master checkbox state: checked if all checked, unchecked if none, indeterminate otherwise*/
         const all = mapping.length;
         const checkedCount = cont.querySelectorAll('input.land-ckb:checked').length;
@@ -1289,13 +1296,18 @@ Promise.all([
      * @param {string[]} labels - array of category labels to show in Plotly (trace names)
      */
     function applyLegendFilter(codes, labels) {
+      const activeCodes = Array.isArray(codes) ? codes.map(String) : [];
+      const activeLabels = Array.isArray(labels) ? labels.map(String) : [];
+      currentLegendFilterCodes = activeCodes;
+      currentLegendFilterLabels = activeLabels;
+
       /*map: polygons + outlines + centroids*/
       if (map && map.getStyle()) {
         const hasFill = !!map.getLayer('landcover-fill');
         const hasOutline = !!map.getLayer('landcover-outline');
         const hasCentroids = !!map.getLayer('centroids-circle');
 
-        if (codes.length === 0) {
+        if (activeCodes.length === 0) {
           /* hide layers (no selection)*/
           if (hasFill) map.setPaintProperty('landcover-fill', 'fill-opacity', 0);
           if (hasOutline) map.setPaintProperty('landcover-outline', 'line-opacity', 0);
@@ -1305,7 +1317,7 @@ Promise.all([
             pmtiles use filter to show matching features.*/
           try {
             /* build an array of labels as strings for the filter expression*/
-            const literalLabels = ['literal', labels.map(String)];
+            const literalLabels = ['literal', activeLabels];
 
             /* landcover-fill & landcover-outline: use filter on 'category' property*/
             if (hasFill) {
@@ -1336,12 +1348,12 @@ Promise.all([
       /* plot: show/hide traces by trace.name matching labels*/
       try {
         /* if no labels selected, set every trace to hidden. Otherwise toggle each trace*/
-        const noLabels = !labels || labels.length === 0;
+        const noLabels = activeLabels.length === 0;
 
         /* iterate scatterTraces and set visibility by index.*/
         scatterTraces.forEach((trace, idx) => {
           const traceName = trace.name;
-          const visible = noLabels ? 'legendonly' : (labels.includes(traceName) ? true : 'legendonly');
+          const visible = noLabels ? 'legendonly' : (activeLabels.includes(traceName) ? true : 'legendonly');
           /* update trace visibility*/
           Plotly.restyle('scatter-plot', { visible }, [idx]);
         });
