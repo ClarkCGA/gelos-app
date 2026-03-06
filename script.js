@@ -5,49 +5,14 @@ const today = new Date();
 const year  = today.getFullYear();
 
 /* base data URL (contains category, color, id, lat, lon, thumbnails, dates) */
-const BASE_DATA_URL = 'https://gelos-fm.s3.amazonaws.com/json/points.json';
+const BASE_DATA_URL = window.MA_CONFIG?.BASE_DATA_URL;
 
 /* model fields */
-const MODEL_FIELDS = {
-  "exp001_prithvi300_cls_token_layer_23_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_cls_token_layer_23_tsne.json",
-    title: "Prithvi EO V2 300M: CLS Token"
-  },
-  "exp001_prithvi300_all_steps_of_middle_patch_layer_23_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_steps_of_middle_patch_layer_23_tsne.json",
-    title: "Prithvi EO V2 300M: All Steps of Middle Patch"
-  },
-  "exp001_prithvi300_all_patches_from_april_to_june_layer_23_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp001_prithvi300_all_patches_from_april_to_june_layer_23_tsne.json",
-    title: "Prithvi EO V2 300M: All Patches from April to June"
-  },
-  "exp004_prithvi600_cls_token_layer_31_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_cls_token_layer_31_tsne.json",
-    title: "Prithvi EO V2 600M: CLS Token"
-  },
-  "exp004_prithvi600_all_steps_of_middle_patch_layer_31_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_steps_of_middle_patch_layer_31_tsne.json",
-    title: "Prithvi EO V2 600M: All Steps of Middle Patch"
-  },
-  "exp004_prithvi600_all_patches_from_april_to_june_layer_31_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp004_prithvi600_all_patches_from_april_to_june_layer_31_tsne.json",
-    title: "Prithvi EO V2 600M: All Patches from April to June"
-  },
-  "exp007_terramind_all_steps_of_middle_patch_layer_11_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_steps_of_middle_patch_layer_11_tsne.json",
-    title: "Terramind V1 Base: All Steps of Middle Patch"
-  },
-  "exp007_terramind_all_patches_from_april_to_june_layer_11_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_patches_from_april_to_june_layer_11_tsne.json",
-    title: "Terramind V1 Base: All Patches from April to June"
-  },
-  "exp007_terramind_all_embeddings_layer_11_tsne": {
-    path: "https://gelos-fm.s3.amazonaws.com/json/exp007_terramind_all_embeddings_layer_11_tsne.json",
-    title: "Terramind V1 Base: All Embeddings"
-  }
-}
-
-const DEFAULT_MODEL = 'exp001_prithvi300_cls_token_layer_23_tsne';
+const MODEL_FIELDS = window.MA_CONFIG?.MODEL_FIELDS;
+const IMAGE_DATASETS = window.MA_CONFIG?.IMAGE_DATASETS;
+const DEFAULT_MODEL = window.MA_CONFIG?.DEFAULT_MODEL;
+const DEFAULT_MODE = window.MA_CONFIG?.DEFAULT_MODE;
+const DEFAULT_THUMB_DATASET = window.MA_CONFIG?.DEFAULT_THUMBDATASET;
 
 /* cache for loaded model data: modelName -> Map(id -> {x, y}) */
 const modelDataCache = new Map();
@@ -87,9 +52,9 @@ Promise.all([
     let map;                 /* current map instance*/
     let selectedId = null;   /* current selected id*/
     let selectedIds = new Set();   /* current multi-selected ids*/
-    let currentMode = 'globe';
+    let currentMode = DEFAULT_MODE;
     let currentModel = DEFAULT_MODEL;
-    let currentThumbDataset = 'sentinel_2';
+    let currentThumbDataset = DEFAULT_THUMB_DATASET;
     let currentLegendFilterCodes = [];
     let currentLegendFilterLabels = [];
 
@@ -126,11 +91,22 @@ Promise.all([
 
     /* wire up the model-menu*/
     const modelMenu = document.getElementById('model-menu');
+    if (modelMenu) {
+      modelMenu.innerHTML = '';
+      Object.entries(MODEL_FIELDS).forEach(([key, model]) => {
+        const item = document.createElement('a');
+        item.href = '#';
+        item.setAttribute('gfm', key);
+        item.textContent = model.title || key;
+        modelMenu.appendChild(item);
+      });
+    }
     /* set initial label select from currentModel , default prithvi-eo-2.0*/
     if (modelMenu) {
     function initModelsLabel() {
       const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
-      setModelsButtonLabel(initial ? initial.textContent.trim() : 'Prithvi EO V2 300M: CLS Token');
+      const fallback = MODEL_FIELDS[currentModel]?.title || Object.values(MODEL_FIELDS)[0]?.title || 'Model';
+      setModelsButtonLabel(initial ? initial.textContent.trim() : fallback);
     }
     initModelsLabel();
 
@@ -161,8 +137,8 @@ Promise.all([
       modelMenu.classList.remove('show');
 
       /* preserve selection state before rebuild */
-      const prevSelectedId = selectedId;
-      const prevHighlightedIds = new Set(_currentHighlightedIds);
+      const prevSelectedId = selectedId;  //single selected point
+      const prevHighlightedIds = new Set(_currentHighlightedIds); //multi-selected points
 
       /* rebuild traces/layout for the newly chosen model*/
       const { traces, layout } = buildScatterForModel(points, currentModel);
@@ -211,11 +187,22 @@ Promise.all([
 
     /* wire up the image-menu*/
     const imageMenu = document.getElementById('image-menu');
+    if (imageMenu) {
+      imageMenu.innerHTML = '';
+      Object.entries(IMAGE_DATASETS).forEach(([key, dataset]) => {
+        const item = document.createElement('a');
+        item.href = '#';
+        item.setAttribute('thumb-dataset', key);
+        item.textContent = dataset.label || key;
+        imageMenu.appendChild(item);
+      });
+    }
     /* set initial label select from currentThumbDataset, default Sentinel-2*/
     if (imageMenu) {
     function initImagesLabel() {
       const initial = imageMenu.querySelector(`a[thumb-dataset="${currentThumbDataset}"]`);
-      setImagesButtonLabel(initial ? initial.textContent.trim() : 'Sentinel-2');
+      const fallback = IMAGE_DATASETS[currentThumbDataset]?.label || Object.values(IMAGE_DATASETS)[0]?.label || 'Images';
+      setImagesButtonLabel(initial ? initial.textContent.trim() : fallback);
     }
     initImagesLabel();
 
