@@ -115,7 +115,7 @@
   .navbar {
   position: absolute;
   top: 8px; left: 8px;
-  z-index: 3;       
+  z-index: 10;      /* above .globe-map (z-index:3) so dropdown renders on top */
   background: rgba(104,9,193,0.8);
   border-radius: 6px;
   overflow: visible;   /* allow dropdown extend outside the bar */
@@ -262,11 +262,13 @@
   .dropdown-content {
   display: none;
   position: absolute;
-  top: 100%; left: 0;
+  top: 100%; right: 0;
   background: #f9f9f9;
   min-width: 160px;
   box-shadow: 0 8px 16px rgba(0,0,0,0.2);
   z-index: 1100;  /* above navbar and map */
+  max-height: calc(100vh - 140px);  /* navbar (~48px) + globe-map buttons (~70px) + 2px gap */
+  overflow-y: auto;                /* scroll when items exceed the cap */
   }
   .dropdown-content a { color:#000; padding:12px 16px; text-decoration:none; display:block; }
   .dropdown-content a:hover { background:#ddd; }
