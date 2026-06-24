@@ -9,6 +9,7 @@ const BASE_DATA_URL = window.MA_CONFIG?.BASE_DATA_URL;
 
 /* model fields */
 const MODEL_FIELDS = window.MA_CONFIG?.MODEL_FIELDS;
+const EXPERIMENTS = window.MA_CONFIG?.EXPERIMENTS;
 const IMAGE_DATASETS = window.MA_CONFIG?.IMAGE_DATASETS;
 const DEFAULT_MODEL = window.MA_CONFIG?.DEFAULT_MODEL;
 const DEFAULT_MODE = window.MA_CONFIG?.DEFAULT_MODE;
@@ -89,36 +90,15 @@ Promise.all([
       if (btn) btn.innerHTML = `Models :<b> ${label}</b> <i class="fa fa-caret-down"></i>`;
     };
 
-    /* wire up the model-menu*/
-    const modelMenu = document.getElementById('model-menu');
-    if (modelMenu) {
-      modelMenu.innerHTML = '';
-      Object.entries(MODEL_FIELDS).forEach(([key, model]) => {
-        const item = document.createElement('a');
-        item.href = '#';
-        item.setAttribute('gfm', key);
-        item.textContent = model.title || key;
-        modelMenu.appendChild(item);
-      });
-    }
-    /* set initial label select from currentModel , default prithvi-eo-2.0*/
-    if (modelMenu) {
-    function initModelsLabel() {
-      const initial = modelMenu.querySelector(`a[gfm="${currentModel }"]`);
-      const fallback = MODEL_FIELDS[currentModel]?.title || Object.values(MODEL_FIELDS)[0]?.title || 'Model';
-      setModelsButtonLabel(initial ? initial.textContent.trim() : fallback);
-    }
-    initModelsLabel();
+    /*strategies button*/
+    const setStrategiesButtonLabel = (label) => {
+      const btn = document.getElementById('strategies-btn');
+      if (btn) btn.innerHTML = `Strategies :<b> ${label}</b> <i class="fa fa-caret-down"></i>`;
+    };
 
-    /* update on click */
-    modelMenu.addEventListener('click', async (e) => {
-      const link = e.target.closest('a[gfm]');
-      if (!link) return;
-      e.preventDefault();
-
-      const newModel = link.getAttribute('gfm');
-      setModelsButtonLabel(link.textContent.trim());
-
+    /* core: load a model's data on-demand and rebuild the plot.
+       Shared by both the model and strategy menus. */
+    async function applyModelSelection(newModel) {
       /* show loading overlay */
       const loadingM = document.getElementById('scatter-loading');
       if (loadingM) loadingM.style.display = 'flex';
@@ -132,9 +112,6 @@ Promise.all([
         if (loadingM) loadingM.style.display = 'none';
         return;
       }
-
-      /* close the dropdown */
-      modelMenu.classList.remove('show');
 
       /* preserve selection state before rebuild */
       const prevSelectedId = selectedId;  //single selected point
@@ -176,7 +153,95 @@ Promise.all([
         if (loadingM) loadingM.style.display = 'none';
         console.error('Plotly.react failed:', err);
       });
-    });
+    }
+
+    /* build the strategy-menu items for a given experiment */
+    const strategyMenu = document.getElementById('strategy-menu');
+    function buildStrategyMenu(experimentKey) {
+      if (!strategyMenu) return;
+      strategyMenu.innerHTML = '';
+      const modelKeys = EXPERIMENTS?.[experimentKey]?.model_keys || [];
+      modelKeys.forEach((modelKey) => {
+        const item = document.createElement('a');
+        item.href = '#';
+        item.setAttribute('gfm', modelKey);
+        item.textContent = MODEL_FIELDS[modelKey]?.strategy_title || modelKey;
+        strategyMenu.appendChild(item);
+      });
+    }
+
+    /* wire up the model-menu (one entry per experiment)*/
+    const modelMenu = document.getElementById('model-menu');
+    if (modelMenu && EXPERIMENTS) {
+      modelMenu.innerHTML = '';
+      Object.entries(EXPERIMENTS).forEach(([experimentKey, exp]) => {
+        const item = document.createElement('a');
+        item.href = '#';
+        item.setAttribute('exp', experimentKey);
+        item.textContent = exp.title || experimentKey;
+        modelMenu.appendChild(item);
+      });
+    }
+
+    /* set initial labels + strategy menu from currentModel */
+    function initMenuLabels() {
+      const currentExp = MODEL_FIELDS[currentModel]?.experiment_key;
+      const modelsLabel = MODEL_FIELDS[currentModel]?.experiment_title
+        || EXPERIMENTS?.[currentExp]?.title
+        || Object.values(EXPERIMENTS || {})[0]?.title
+        || 'Model';
+      setModelsButtonLabel(modelsLabel);
+      setStrategiesButtonLabel(MODEL_FIELDS[currentModel]?.strategy_title || 'Strategy');
+      buildStrategyMenu(currentExp);
+    }
+    initMenuLabels();
+
+    /* model menu click: select an experiment, then load its first strategy */
+    if (modelMenu) {
+      modelMenu.addEventListener('click', async (e) => {
+        const link = e.target.closest('a[exp]');
+        if (!link) return;
+        e.preventDefault();
+
+        const experimentKey = link.getAttribute('exp');
+        setModelsButtonLabel(link.textContent.trim());
+        buildStrategyMenu(experimentKey);
+
+        /* close the dropdown */
+        modelMenu.classList.remove('show');
+
+        /* auto-select the experiment's first strategy */
+        const modelKeys = EXPERIMENTS?.[experimentKey]?.model_keys || [];
+        const firstModelKey = modelKeys[0];
+        if (!firstModelKey) return;
+        setStrategiesButtonLabel(MODEL_FIELDS[firstModelKey]?.strategy_title || firstModelKey);
+
+        /* if this experiment offers multiple strategies, auto-open the strategy
+           dropdown so the user can pick; otherwise keep it closed */
+        if (modelKeys.length > 1) {
+          strategyMenu.classList.add('show');
+        } else {
+          strategyMenu.classList.remove('show');
+        }
+
+        await applyModelSelection(firstModelKey);
+      });
+    }
+
+    /* strategy menu click: load the chosen model id */
+    if (strategyMenu) {
+      strategyMenu.addEventListener('click', async (e) => {
+        const link = e.target.closest('a[gfm]');
+        if (!link) return;
+        e.preventDefault();
+
+        setStrategiesButtonLabel(link.textContent.trim());
+
+        /* close the dropdown */
+        strategyMenu.classList.remove('show');
+
+        await applyModelSelection(link.getAttribute('gfm'));
+      });
     }
 
     /*image button*/
