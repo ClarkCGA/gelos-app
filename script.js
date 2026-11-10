@@ -146,6 +146,8 @@ Promise.all([
           if (rec) {
             selectedId = rec.id;
             renderThumbnails(rec);
+            /* Plotly.react replaced the layout, so redraw the ring */
+            selectOnPlotById(rec.id);
           }
         }
       }).catch((err) => {
@@ -353,6 +355,10 @@ Promise.all([
       });
       /*apply across all traces*/
       Plotly.restyle('scatter-plot', { selectedpoints: perTrace });
+
+      /* ring only for a single selection */
+      if (idsSet.size === 1) showPlotSelectionMarker(Array.from(idsSet)[0]);
+      else clearPlotSelectionMarker();
     }
 
     function syncBoth(idsSet) {
@@ -592,7 +598,7 @@ Promise.all([
             `<b>y:</b> %{y:.2f}<br>` +
             `<b>lat:</b> %{customdata[1]:.4f}<br>` +
             `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-          selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } } },
+          selected:   { marker: { size: 10, opacity: 1 } },
           unselected: { marker: { opacity: 1 } }
         };
       });
@@ -767,17 +773,60 @@ Promise.all([
       }
     }
 
+    /* ---------- selected-point marker (ring) on the plot ---------- */
+    const SEL_MARKER_COLOR = '#ff1744';   /* bright red ring */
+    const SEL_MARKER_RADIUS_PX = 11;      /* ring radius in screen pixels */
+
+    /* look up plot location for an id (handles number/string id mismatch) */
+    function getPlotLoc(id) {
+      let loc = idToPlotIndex.get(id);
+      if (!loc && typeof id === 'string' && !isNaN(Number(id))) loc = idToPlotIndex.get(Number(id));
+      if (!loc && typeof id === 'number') loc = idToPlotIndex.get(String(id));
+      return loc;
+    }
+
+    /* SELECT: draw a ring around the selected point */
+    function showPlotSelectionMarker(id) {
+      const loc = getPlotLoc(id);
+      if (!loc) { clearPlotSelectionMarker(); return; }
+      const tr = scatterTraces[loc.traceIdx];
+      const x = tr?.x?.[loc.pointIdx];
+      const y = tr?.y?.[loc.pointIdx];
+      if (!Number.isFinite(x) || !Number.isFinite(y)) { clearPlotSelectionMarker(); return; }
+
+      const r = SEL_MARKER_RADIUS_PX;
+      const shapes = [
+        /* white halo so the ring stands out on any point color */
+        { type: 'circle', xref: 'x', yref: 'y', xsizemode: 'pixel', ysizemode: 'pixel',
+          xanchor: x, yanchor: y, x0: -r, x1: r, y0: -r, y1: r,
+          line: { color: '#ffffff', width: 6 }, layer: 'above' },
+        /* red ring */
+        { type: 'circle', xref: 'x', yref: 'y', xsizemode: 'pixel', ysizemode: 'pixel',
+          xanchor: x, yanchor: y, x0: -r, x1: r, y0: -r, y1: r,
+          line: { color: SEL_MARKER_COLOR, width: 3 }, layer: 'above' }
+      ];
+      Plotly.relayout('scatter-plot', { shapes });
+    }
+
+    /* UNSELECT: remove the ring */
+    function clearPlotSelectionMarker() {
+      const gd = document.getElementById('scatter-plot');
+      if (gd?.layout?.shapes?.length) Plotly.relayout('scatter-plot', { shapes: [] });
+    }
+
     /* clear selection on all traces*/
     function clearPlotSelections() {
       const traceIndices = scatterTraces.map((_, i) => i);
       Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, traceIndices);
       /* non-selected are not transparent after clearing*/
       Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+      /* remove the selected-point ring */
+      clearPlotSelectionMarker();
     }
 
     /*select single point on plot/map*/
     function selectOnPlotById(id) {
-      const loc = idToPlotIndex.get(id);
+      const loc = getPlotLoc(id);
       if (!loc) return;
 
       /*  build the list of trace indices*/
@@ -788,6 +837,10 @@ Promise.all([
 
       /*  apple selected" style to the chosen point on its trace*/
       Plotly.restyle('scatter-plot', { selectedpoints: [[ loc.pointIdx ]] }, [ loc.traceIdx ]);
+
+      /* dim everything else and draw the ring on the chosen point */
+      Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 0.1 } } });
+      showPlotSelectionMarker(id);
     }
 
     function flyToId(id) {
