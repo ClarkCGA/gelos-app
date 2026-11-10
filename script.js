@@ -123,7 +123,7 @@ Promise.all([
       scatterLayout = layout;
 
       /* keep any highlight/selection visuals consistent after react*/
-      Plotly.react('scatter-plot', scatterTraces, scatterLayout, { responsive: true }).then(() => {
+      Plotly.react('scatter-plot', plotData(), scatterLayout, { responsive: true }).then(() => {
         /* hide loading overlay after plot finishes rendering */
         if (loadingM) loadingM.style.display = 'none';
 
@@ -133,7 +133,7 @@ Promise.all([
         // re-apply selection dimming & per-trace selectedpoints
         if (prevHighlightedIds.size > 0) {
           applySelectionToPlot(prevHighlightedIds);
-          Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+          Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] }, catTraceIdx());
           // re-apply map highlight
           highlightIdsOnMap(prevHighlightedIds);
         } else {
@@ -146,6 +146,8 @@ Promise.all([
           if (rec) {
             selectedId = rec.id;
             renderThumbnails(rec);
+            /* Plotly.react replaced the layout, so redraw the ring */
+            selectOnPlotById(rec.id);
           }
         }
       }).catch((err) => {
@@ -352,7 +354,11 @@ Promise.all([
         if (loc) perTrace[loc.traceIdx].push(loc.pointIdx);
       });
       /*apply across all traces*/
-      Plotly.restyle('scatter-plot', { selectedpoints: perTrace });
+      Plotly.restyle('scatter-plot', { selectedpoints: perTrace }, catTraceIdx());
+
+      /* red ring + halo on every selected point (single or multi) */
+      if (idsSet.size > 0) showPlotRings(idsSet);
+      else clearPlotSelectionMarker();
     }
 
     function syncBoth(idsSet) {
@@ -388,7 +394,7 @@ Promise.all([
         applySelectionToPlot(idsSet);
 
         /* make non-selected points transparent*/
-        Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 0.1 } } });
+        Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 0.1 } } }, catTraceIdx());
       } catch (err) {
         console.warn('highlightIdsOnMap: error applying selection to Plotly', err);
       }
@@ -405,6 +411,8 @@ Promise.all([
         if (hasCentroids) {
           map.setPaintProperty('centroids-circle', 'circle-opacity', 1);
         }
+        /* UNSELECT: remove map rings */
+        setMapSelectionRings([]);
 
         /* clear selectedId and thumbnails UI */
         selectedId = null;
@@ -416,7 +424,7 @@ Promise.all([
           /* clear selectedpoints across all traces*/
           clearPlotSelections();
           /* restore unselected opacity so non-selected points are not transparent*/
-          Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 1 } } });
+          Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 1 } } }, catTraceIdx());
         } catch (err) {
           console.warn('highlightIdsOnMap: error restoring Plotly state', err);
         }
@@ -483,6 +491,8 @@ Promise.all([
       if (hasCentroids) {
         map.setPaintProperty('centroids-circle', 'circle-opacity', centroidOpacityExpr);
       }
+      /* SELECT: red ring + white halo around every selected centroid */
+      setMapSelectionRings(arr);
     }
 
     /*spin*/
@@ -544,6 +554,89 @@ Promise.all([
     let idToPlotIndex = new Map(); /* id -> { traceIdx, pointIdx }*/
 
     let scatterTraces = [];
+
+    /* selected-point ring style (must be defined before the first Plotly.newPlot) */
+    const SEL_MARKER_COLOR = '#ff1744';   /* bright red ring */
+    const SEL_MARKER_RADIUS_PX = 6;       /* ring radius in screen pixels, single selection */
+    const SEL_MARKER_MULTI_RADIUS_PX = 6; /* ring radius in screen pixels, Box/Lasso/polygon multi-select */
+    const SEL_HALO_WIDTH_PX = 3;          /* white halo line width */
+    const SEL_RING_WIDTH_PX = 1.5;        /* red ring line width */
+    const SEL_POINT_SIZE_PX = 10;         /* size of the selected point drawn on top (single selection) */
+    const RING_TRACE_COUNT = 2;           /* multi-select halo + ring layers sit at gd.data[0], gd.data[1] */
+
+    /* ---------- map: red ring + white halo around selected centroids ---------- */
+    const MAP_RING_GAP_PX = 1;            /* space between the centroid edge and the ring */
+    const MAP_HALO_LAYER = 'centroids-sel-halo';
+    const MAP_RING_LAYER = 'centroids-sel-ring';
+    let _mapRingLegendLabels = null;      /* null = no legend filter yet (show all classes) */
+
+    /* centroid radius by zoom (same stops as the centroids-circle layer), plus an offset */
+    function centroidRadiusExpr(offset = 0) {
+      return ['interpolate', ['linear'], ['zoom'],
+        0, 4 + offset,
+        8, 8 + offset,
+        12, 14 + offset,
+        16, 18 + offset,
+        20, 22 + offset];
+    }
+
+    /* id expression shared with highlightIdsOnMap */
+    const MAP_ID_EXPR = ['to-string', ['coalesce', ['get', 'id'], ['get', 'chip_id']]];
+
+    /* filter: selected ids only, and only classes currently shown by the legend */
+    function mapRingFilter(idArr) {
+      const f = ['all', ['in', MAP_ID_EXPR, ['literal', idArr]]];
+      if (Array.isArray(_mapRingLegendLabels)) {
+        f.push(['in', ['to-string', ['get', 'category']], ['literal', _mapRingLegendLabels]]);
+      }
+      return f;
+    }
+
+    /* add the two ring layers right UNDER the centroid layer (call after centroids-circle exists).
+       Selected centroids are opaque and sit on top, so where selected centroids overlap,
+       they hide each other's ring; a cluster shows one clean outline around its outer edge. */
+    function addMapSelectionRingLayers() {
+      if (!map || !map.getSource('centroids')) return;
+      const base = {
+        type: 'circle',
+        source: 'centroids',
+        'source-layer': 'gelos_centroids',
+        filter: mapRingFilter([])            /* nothing selected yet */
+      };
+      /* circle-stroke is drawn OUTSIDE circle-radius:
+           halo: white band from r to r+halo
+           ring: red band centred inside the halo, so white shows on both sides */
+      const r = MAP_RING_GAP_PX;
+      const ringInset = (SEL_HALO_WIDTH_PX - SEL_RING_WIDTH_PX) / 2;
+      const below = map.getLayer('centroids-circle') ? 'centroids-circle' : undefined;
+      if (!map.getLayer(MAP_HALO_LAYER)) {
+        map.addLayer({ ...base, id: MAP_HALO_LAYER, paint: {
+          'circle-radius': centroidRadiusExpr(r),
+          'circle-opacity': 0,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': SEL_HALO_WIDTH_PX,
+          'circle-stroke-opacity': 1
+        }}, below);
+      }
+      if (!map.getLayer(MAP_RING_LAYER)) {
+        map.addLayer({ ...base, id: MAP_RING_LAYER, paint: {
+          'circle-radius': centroidRadiusExpr(r + ringInset),
+          'circle-opacity': 0,
+          'circle-stroke-color': SEL_MARKER_COLOR,
+          'circle-stroke-width': SEL_RING_WIDTH_PX,
+          'circle-stroke-opacity': 1
+        }}, below);
+      }
+    }
+
+    /* SELECT / UNSELECT on the map: show rings for these ids ([] clears them).
+       Same outer ring for single and multi-select; the rings sit under the centroids. */
+    function setMapSelectionRings(idArr) {
+      if (!map) return;
+      const f = mapRingFilter((idArr || []).map(String));
+      if (map.getLayer(MAP_HALO_LAYER)) map.setFilter(MAP_HALO_LAYER, f);
+      if (map.getLayer(MAP_RING_LAYER)) map.setFilter(MAP_RING_LAYER, f);
+    }
     let scatterLayout = {};
 
     function buildScatterForModel(points, modelName) {
@@ -592,7 +685,7 @@ Promise.all([
             `<b>y:</b> %{y:.2f}<br>` +
             `<b>lat:</b> %{customdata[1]:.4f}<br>` +
             `<b>lon:</b> %{customdata[2]:.4f}<extra></extra>`,
-          selected:   { marker: { size: 9, line: { color: '#0d0d0cff', width: 6 } } },
+          selected:   { marker: { size: 10, opacity: 1 } },
           unselected: { marker: { opacity: 1 } }
         };
       });
@@ -629,7 +722,7 @@ Promise.all([
     /* initial render*/ 
     ({ traces: scatterTraces, layout: scatterLayout } = buildScatterForModel(points, currentModel));
 
-    Plotly.newPlot('scatter-plot', scatterTraces, scatterLayout, { responsive: true });
+    Plotly.newPlot('scatter-plot', plotData(), scatterLayout, { responsive: true });
     
     /*multi-select from plotly to map*/
     const scatterDiv = document.getElementById('scatter-plot');
@@ -670,9 +763,9 @@ Promise.all([
 
       /* fade non-selected points*/
       if (ids.size > 0) {
-        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] }, catTraceIdx());
       } else {
-        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+        Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] }, catTraceIdx());
       }
       highlightIdsOnMap(ids);
       fitMapToIds(ids);
@@ -681,7 +774,7 @@ Promise.all([
     /* cleared selection on empty space*/
     scatterDiv.on('plotly_deselect', () => {
       /* restore full opacity for all (no transparency)*/
-      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] }, catTraceIdx());
       highlightIdsOnMap(new Set());
     });
 
@@ -767,27 +860,138 @@ Promise.all([
       }
     }
 
+    /* ---------- selected-point marker (ring) on the plot ---------- */
+
+    /* look up plot location for an id (handles number/string id mismatch) */
+    function getPlotLoc(id) {
+      let loc = idToPlotIndex.get(id);
+      if (!loc && typeof id === 'string' && !isNaN(Number(id))) loc = idToPlotIndex.get(Number(id));
+      if (!loc && typeof id === 'number') loc = idToPlotIndex.get(String(id));
+      return loc;
+    }
+
+    /* Layer order in gd.data (first = drawn at the bottom):
+         [0] multi halo, [1] multi ring          -> UNDER all points (Box/Lasso/polygon)
+         [2 .. N+1] category point traces        -> scatterTraces[i] is gd.data[i + RING_TRACE_COUNT]
+         [N+2] single halo, [N+3] single ring    -> ABOVE all other points
+         [N+4] single selected point (copy)      -> on top, so the ring sits just below it
+       Ring layers are NOT in scatterTraces. */
+    function catTraceIdx() { return scatterTraces.map((_, i) => i + RING_TRACE_COUNT); }
+    function ringTraceIdx() { return [0, 1]; }   /* multi-select rings */
+    function singleTraceIdx() {                  /* single-select halo, ring, point */
+      const n = RING_TRACE_COUNT + scatterTraces.length;
+      return [n, n + 1, n + 2];
+    }
+
+    function makeRingTraces(radiusPx, prefix) {
+      const d = radiusPx * 2;   /* marker size is a diameter */
+      const base = {
+        x: [], y: [], type: 'scattergl', mode: 'markers',
+        hoverinfo: 'skip', showlegend: false,
+        unselected: { marker: { opacity: 1 } }
+      };
+      return [
+        /* white halo so the ring stands out on any point color */
+        { ...base, name: `__${prefix}_halo__`,
+          marker: { size: d, color: 'rgba(0,0,0,0)', line: { color: '#ffffff', width: SEL_HALO_WIDTH_PX } } },
+        /* red ring */
+        { ...base, name: `__${prefix}_ring__`,
+          marker: { size: d, color: 'rgba(0,0,0,0)', line: { color: SEL_MARKER_COLOR, width: SEL_RING_WIDTH_PX } } }
+      ];
+    }
+
+    /* copy of the single selected point, drawn above its ring */
+    function makeSinglePointTrace() {
+      return {
+        x: [], y: [], type: 'scattergl', mode: 'markers', name: '__single_point__',
+        hoverinfo: 'skip', showlegend: false,
+        unselected: { marker: { opacity: 1 } },
+        marker: { size: SEL_POINT_SIZE_PX, color: [], opacity: 1, line: { color: 'black', width: 0.5 } }
+      };
+    }
+
+    /* full data array handed to Plotly.newPlot / Plotly.react */
+    function plotData() {
+      return [
+        ...makeRingTraces(SEL_MARKER_MULTI_RADIUS_PX, 'multi'),
+        ...scatterTraces,
+        ...makeRingTraces(SEL_MARKER_RADIUS_PX, 'single'),
+        makeSinglePointTrace()
+      ];
+    }
+
+    /* SELECT: draw a red ring (with halo) around every selected point.
+       1 point  -> single layers above all points (ring just below the point)
+       2+ points -> multi layers under all points */
+    function showPlotRings(ids) {
+      const gd = document.getElementById('scatter-plot');
+      const xs = [], ys = [], colors = [];
+      (ids || []).forEach(id => {
+        const loc = getPlotLoc(id);
+        if (!loc) return;
+        /* skip points whose class is hidden by the legend filter */
+        const vis = gd?.data?.[loc.traceIdx + RING_TRACE_COUNT]?.visible;
+        if (vis === false || vis === 'legendonly') return;
+        const tr = scatterTraces[loc.traceIdx];
+        const x = tr?.x?.[loc.pointIdx], y = tr?.y?.[loc.pointIdx];
+        if (Number.isFinite(x) && Number.isFinite(y)) {
+          xs.push(x); ys.push(y);
+          const c = tr?.marker?.color;
+          colors.push(Array.isArray(c) ? c[loc.pointIdx] : c);
+        }
+      });
+
+      const single = xs.length === 1;
+      const mX = single ? [] : xs, mY = single ? [] : ys;
+      const sX = single ? xs : [], sY = single ? ys : [], sC = single ? colors : [];
+
+      /* one restyle for all 5 selection layers */
+      Plotly.restyle('scatter-plot', {
+        x: [mX, mX, sX, sX, sX],
+        y: [mY, mY, sY, sY, sY],
+        'marker.color': [undefined, undefined, undefined, undefined, sC],
+        selectedpoints: [null, null, null, null, null]
+      }, [...ringTraceIdx(), ...singleTraceIdx()]);
+    }
+
+    /* kept for single-point callers */
+    function showPlotSelectionMarker(id) { showPlotRings([id]); }
+
+    /* UNSELECT: remove all rings (single and multi) */
+    function clearPlotSelectionMarker() {
+      Plotly.restyle('scatter-plot', {
+        x: [[], [], [], [], []],
+        y: [[], [], [], [], []],
+        selectedpoints: [null, null, null, null, null]
+      }, [...ringTraceIdx(), ...singleTraceIdx()]);
+    }
+
     /* clear selection on all traces*/
     function clearPlotSelections() {
-      const traceIndices = scatterTraces.map((_, i) => i);
-      Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, traceIndices);
+      Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, catTraceIdx());
       /* non-selected are not transparent after clearing*/
-      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] });
+      Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 1 } }] }, catTraceIdx());
+      /* remove the selected-point ring */
+      clearPlotSelectionMarker();
     }
 
     /*select single point on plot/map*/
     function selectOnPlotById(id) {
-      const loc = idToPlotIndex.get(id);
+      const loc = getPlotLoc(id);
       if (!loc) return;
 
       /*  build the list of trace indices*/
-      const allTraceIdx = scatterTraces.map((_, i) => i);
+      const allTraceIdx = catTraceIdx();
 
       /*  selectedpoints = [] to apply "unselected" style */
       Plotly.restyle('scatter-plot', { selectedpoints: [ [] ] }, allTraceIdx);
 
       /*  apple selected" style to the chosen point on its trace*/
-      Plotly.restyle('scatter-plot', { selectedpoints: [[ loc.pointIdx ]] }, [ loc.traceIdx ]);
+      Plotly.restyle('scatter-plot', { selectedpoints: [[ loc.pointIdx ]] }, [ loc.traceIdx + RING_TRACE_COUNT ]);
+
+      /* dim everything else and draw the ring on the chosen point */
+      Plotly.restyle('scatter-plot', { unselected: { marker: { opacity: 0.1 } } }, catTraceIdx());
+      showPlotSelectionMarker(id);
     }
 
     function flyToId(id) {
@@ -1063,6 +1267,9 @@ Promise.all([
             'circle-opacity':1
           }
         });
+
+        /* selection halo + red ring, drawn under the centroids */
+        addMapSelectionRingLayers();
         
         /* hover popup (no close button)*/
         let centroidHoverPopup = new mapboxgl.Popup({
@@ -1353,6 +1560,10 @@ Promise.all([
       currentLegendFilterCodes = activeCodes;
       currentLegendFilterLabels = activeLabels;
 
+      /* map rings only on classes the legend shows (none checked -> no rings) */
+      _mapRingLegendLabels = activeLabels;
+      setMapSelectionRings(Array.from(_currentHighlightedIds).slice(0, 2000));
+
       /*map: polygons + outlines + centroids*/
       if (map && map.getStyle()) {
         const hasFill = !!map.getLayer('landcover-fill');
@@ -1407,7 +1618,7 @@ Promise.all([
           const traceName = trace.name;
           const visible = noLabels ? 'legendonly' : (activeLabels.includes(traceName) ? true : 'legendonly');
           /* update trace visibility*/
-          Plotly.restyle('scatter-plot', { visible }, [idx]);
+          Plotly.restyle('scatter-plot', { visible }, [idx + RING_TRACE_COUNT]);
         });
 
         /* clear any current point selections when filters change*/
@@ -1524,7 +1735,7 @@ Promise.all([
             if (prevHighlightedIds.size > 0) {
               highlightIdsOnMap(prevHighlightedIds);
               applySelectionToPlot(prevHighlightedIds);
-              Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] });
+              Plotly.restyle('scatter-plot', { unselected: [{ marker: { opacity: 0.1 } }] }, catTraceIdx());
             }
 
             // restore single selection (thumbnails)
