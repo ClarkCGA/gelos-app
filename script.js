@@ -411,6 +411,8 @@ Promise.all([
         if (hasCentroids) {
           map.setPaintProperty('centroids-circle', 'circle-opacity', 1);
         }
+        /* UNSELECT: remove map rings */
+        setMapSelectionRings([]);
 
         /* clear selectedId and thumbnails UI */
         selectedId = null;
@@ -489,6 +491,8 @@ Promise.all([
       if (hasCentroids) {
         map.setPaintProperty('centroids-circle', 'circle-opacity', centroidOpacityExpr);
       }
+      /* SELECT: red ring + white halo around every selected centroid */
+      setMapSelectionRings(arr);
     }
 
     /*spin*/
@@ -559,6 +563,80 @@ Promise.all([
     const SEL_RING_WIDTH_PX = 1.5;        /* red ring line width */
     const SEL_POINT_SIZE_PX = 10;         /* size of the selected point drawn on top (single selection) */
     const RING_TRACE_COUNT = 2;           /* multi-select halo + ring layers sit at gd.data[0], gd.data[1] */
+
+    /* ---------- map: red ring + white halo around selected centroids ---------- */
+    const MAP_RING_GAP_PX = 1;            /* space between the centroid edge and the ring */
+    const MAP_HALO_LAYER = 'centroids-sel-halo';
+    const MAP_RING_LAYER = 'centroids-sel-ring';
+    let _mapRingLegendLabels = null;      /* null = no legend filter yet (show all classes) */
+
+    /* centroid radius by zoom (same stops as the centroids-circle layer), plus an offset */
+    function centroidRadiusExpr(offset = 0) {
+      return ['interpolate', ['linear'], ['zoom'],
+        0, 4 + offset,
+        8, 8 + offset,
+        12, 14 + offset,
+        16, 18 + offset,
+        20, 22 + offset];
+    }
+
+    /* id expression shared with highlightIdsOnMap */
+    const MAP_ID_EXPR = ['to-string', ['coalesce', ['get', 'id'], ['get', 'chip_id']]];
+
+    /* filter: selected ids only, and only classes currently shown by the legend */
+    function mapRingFilter(idArr) {
+      const f = ['all', ['in', MAP_ID_EXPR, ['literal', idArr]]];
+      if (Array.isArray(_mapRingLegendLabels)) {
+        f.push(['in', ['to-string', ['get', 'category']], ['literal', _mapRingLegendLabels]]);
+      }
+      return f;
+    }
+
+    /* add the two ring layers right UNDER the centroid layer (call after centroids-circle exists).
+       Selected centroids are opaque and sit on top, so where selected centroids overlap,
+       they hide each other's ring; a cluster shows one clean outline around its outer edge. */
+    function addMapSelectionRingLayers() {
+      if (!map || !map.getSource('centroids')) return;
+      const base = {
+        type: 'circle',
+        source: 'centroids',
+        'source-layer': 'gelos_centroids',
+        filter: mapRingFilter([])            /* nothing selected yet */
+      };
+      /* circle-stroke is drawn OUTSIDE circle-radius:
+           halo: white band from r to r+halo
+           ring: red band centred inside the halo, so white shows on both sides */
+      const r = MAP_RING_GAP_PX;
+      const ringInset = (SEL_HALO_WIDTH_PX - SEL_RING_WIDTH_PX) / 2;
+      const below = map.getLayer('centroids-circle') ? 'centroids-circle' : undefined;
+      if (!map.getLayer(MAP_HALO_LAYER)) {
+        map.addLayer({ ...base, id: MAP_HALO_LAYER, paint: {
+          'circle-radius': centroidRadiusExpr(r),
+          'circle-opacity': 0,
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': SEL_HALO_WIDTH_PX,
+          'circle-stroke-opacity': 1
+        }}, below);
+      }
+      if (!map.getLayer(MAP_RING_LAYER)) {
+        map.addLayer({ ...base, id: MAP_RING_LAYER, paint: {
+          'circle-radius': centroidRadiusExpr(r + ringInset),
+          'circle-opacity': 0,
+          'circle-stroke-color': SEL_MARKER_COLOR,
+          'circle-stroke-width': SEL_RING_WIDTH_PX,
+          'circle-stroke-opacity': 1
+        }}, below);
+      }
+    }
+
+    /* SELECT / UNSELECT on the map: show rings for these ids ([] clears them).
+       Same outer ring for single and multi-select; the rings sit under the centroids. */
+    function setMapSelectionRings(idArr) {
+      if (!map) return;
+      const f = mapRingFilter((idArr || []).map(String));
+      if (map.getLayer(MAP_HALO_LAYER)) map.setFilter(MAP_HALO_LAYER, f);
+      if (map.getLayer(MAP_RING_LAYER)) map.setFilter(MAP_RING_LAYER, f);
+    }
     let scatterLayout = {};
 
     function buildScatterForModel(points, modelName) {
@@ -1189,6 +1267,9 @@ Promise.all([
             'circle-opacity':1
           }
         });
+
+        /* selection halo + red ring, drawn under the centroids */
+        addMapSelectionRingLayers();
         
         /* hover popup (no close button)*/
         let centroidHoverPopup = new mapboxgl.Popup({
@@ -1478,6 +1559,10 @@ Promise.all([
       const activeLabels = Array.isArray(labels) ? labels.map(String) : [];
       currentLegendFilterCodes = activeCodes;
       currentLegendFilterLabels = activeLabels;
+
+      /* map rings only on classes the legend shows (none checked -> no rings) */
+      _mapRingLegendLabels = activeLabels;
+      setMapSelectionRings(Array.from(_currentHighlightedIds).slice(0, 2000));
 
       /*map: polygons + outlines + centroids*/
       if (map && map.getStyle()) {
